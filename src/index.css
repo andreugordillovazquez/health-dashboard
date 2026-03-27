@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-ticker {
+  animation: ticker 30s linear infinite;
+  width: max-content;
+}
+
+.recharts-wrapper,
+.recharts-wrapper *,
+.recharts-surface,
+.recharts-surface * {
+  outline: none !important;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.recharts-wrapper .recharts-cartesian-grid,
+.recharts-wrapper .recharts-surface {
+  overflow: visible;
+}
+
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom,
+.leaflet-control {
+  z-index: 1 !important;
+}
+
+button, [role="button"], label[class*="cursor"] {
+  cursor: pointer;
+}
+
+.bg-zinc-900 {
+  background-color: #101014 !important;
+}
