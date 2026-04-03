@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { StatBox } from './ui'
+import { StatBox, TabHeader } from './ui'
 
 interface EcgRecord {
   filename: string
@@ -340,6 +340,7 @@ export default function ECGViewer({ ecgFiles }: { ecgFiles: Map<string, File> })
 
   return (
     <div className="space-y-4">
+      <TabHeader title="ECG" description="Electrocardiogram recordings captured by your Apple Watch." />
       {/* Recording list */}
       <div className="flex gap-2 overflow-x-auto pb-2">
         {records.map((rec, idx) => {

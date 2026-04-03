@@ -4,7 +4,7 @@ import {
   CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, Radar,
 } from 'recharts'
 import type { HealthData } from './types'
-import { tooltipStyle, chartMargin, COLORS, shortDate } from './ui'
+import { tooltipStyle, chartMargin, COLORS, shortDate, AISummaryButton, TabHeader } from './ui'
 import { computeHealthScores, rollingAvg, scoreLabel } from './healthScore'
 
 function ScoreRing({ score, size = 160, label }: { score: number; size?: number; label: string }) {
@@ -69,6 +69,7 @@ export default function HealthScoreView({ data, cutoffDate }: Props) {
 
   return (
     <div className="space-y-6">
+      <TabHeader title="Health Score" description="A composite score combining cardio, sleep, activity, and body metrics into a single number." />
       {/* Score ring + sub-scores */}
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 items-start">
         <div className="flex flex-col items-center gap-2">
@@ -130,8 +131,13 @@ export default function HealthScoreView({ data, cutoffDate }: Props) {
       {/* Score over time */}
       {rolling.length > 7 && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-1">Health Score Over Time</h3>
-          <p className="text-xs text-zinc-500 mb-2">7-day rolling average</p>
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Health Score Over Time</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">7-day rolling average</p>
+            </div>
+            <AISummaryButton title="Health Score Over Time" description="7-day rolling average" chartData={rolling} />
+          </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <AreaChart margin={chartMargin} data={rolling}>
@@ -165,7 +171,12 @@ export default function HealthScoreView({ data, cutoffDate }: Props) {
             { key: 'body', label: 'Body Score', color: COLORS.orange },
           ].map(({ key, label, color }) => (
             <div key={key} className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-              <h3 className="text-sm font-medium text-zinc-300 mb-2">{label}</h3>
+              <div className="flex items-start justify-between mb-1">
+                <div>
+                  <h3 className="text-sm font-medium text-zinc-300">{label}</h3>
+                </div>
+                <AISummaryButton title={label} description={`${label} over time`} chartData={rolling} />
+              </div>
               <div className="h-40">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                   <AreaChart margin={chartMargin} data={rolling}>

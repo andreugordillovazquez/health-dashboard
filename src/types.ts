@@ -100,6 +100,16 @@ export interface DailyBreathing {
   spo2: number | null // % (0-100)
 }
 
+export interface MenstrualRecord {
+  date: string // YYYY-MM-DD
+  flow: 'none' | 'light' | 'medium' | 'heavy' | 'unspecified' | null
+  cervicalMucus: 'dry' | 'sticky' | 'creamy' | 'watery' | 'eggWhite' | null
+  ovulationTest: 'negative' | 'positive' | 'indeterminate' | null
+  basalBodyTemp: number | null // degC
+  sexualActivity: boolean
+  intermenstrualBleeding: boolean
+}
+
 export interface WristTempRecord {
   date: string
   value: number // degC
@@ -125,6 +135,57 @@ export interface GpxRoute {
   startTime: string
 }
 
+export interface GarminTrainingReadiness {
+  date: string; score: number; level: string
+  sleepFactor: number; recoveryTimeFactor: number; acwrFactor: number
+  stressFactor: number; hrvFactor: number; sleepHistoryFactor: number
+}
+
+export interface GarminEnduranceScore {
+  date: string; score: number; classification: number
+  contributors: { group: number; contribution: number }[]
+}
+
+export interface GarminHillScore {
+  date: string; overall: number; strength: number; endurance: number
+}
+
+export interface GarminAcuteTrainingLoad {
+  date: string; acute: number; chronic: number; ratio: number; status: string
+}
+
+export interface GarminRacePrediction {
+  date: string; time5k: number; time10k: number; timeHalf: number; timeMarathon: number
+}
+
+export interface GarminHeatAltitude {
+  date: string; heatPercent: number; altitudeAcclimation: number
+}
+
+export interface GarminFitnessAge {
+  date: string; fitnessAge: number; chronologicalAge: number; vo2max: number
+}
+
+export interface GarminSleepScore {
+  date: string; overall: number; quality: number; duration: number
+  recovery: number; deep: number; rem: number; light: number
+  avgStress: number; respiration: number
+}
+
+export interface GarminMetrics {
+  trainingReadiness: GarminTrainingReadiness[]
+  vo2max: { date: string; value: number; sport: string }[]
+  enduranceScore: GarminEnduranceScore[]
+  hillScore: GarminHillScore[]
+  acuteTrainingLoad: GarminAcuteTrainingLoad[]
+  racePredictions: GarminRacePrediction[]
+  heatAltitude: GarminHeatAltitude[]
+  fitnessAge: GarminFitnessAge[]
+  stressDaily: { date: string; avgStress: number; maxStress: number; restDuration: number; stressDuration: number }[]
+  hydration: { date: string; intakeMl: number; sweatLossMl: number }[]
+  sleepScores: GarminSleepScore[]
+}
+
 export interface HealthData {
   profile: {
     dob: string
@@ -135,6 +196,7 @@ export interface HealthData {
   workouts: Workout[]
   sleepRecords: SleepRecord[]
   wristTempRecords: WristTempRecord[]
+  menstrualRecords: MenstrualRecord[]
   caffeineRecords: CaffeineRecord[]
   bodyRecords: BodyRecord[]
   cardioRecords: CardioRecord[]
@@ -146,6 +208,8 @@ export interface HealthData {
   gpxFiles: Map<string, File> // filename -> File
   ecgFiles: Map<string, File> // filename -> File
   exportDate: string
+  sourceMode?: 'apple' | 'garmin'
+  garminMetrics?: GarminMetrics
 }
 
 export interface ParseProgress {
@@ -162,6 +226,7 @@ export interface ParseComplete {
     workouts: Workout[]
     sleepRecords: SleepRecord[]
     wristTempRecords: WristTempRecord[]
+    menstrualRecords: MenstrualRecord[]
     caffeineRecords: CaffeineRecord[]
     bodyRecords: BodyRecord[]
     cardioRecords: CardioRecord[]

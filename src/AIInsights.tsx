@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import type { HealthData, DailyMetrics } from './types'
+import { TabHeader } from './ui'
 import { computeHealthScores, scoreLabel, type HealthScore } from './healthScore'
 import { Sparkles, Key, Loader2, MessageCircle, Send, Download, Copy, Check } from 'lucide-react'
 
@@ -284,6 +285,7 @@ export default function AIInsights({ data, metrics }: Props) {
 
   return (
     <div className="space-y-4">
+      <TabHeader title="AI Insights" description="AI-powered analysis of your health data to surface trends and actionable recommendations." />
       {/* API Key */}
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
         <div className="flex items-center justify-between mb-3">

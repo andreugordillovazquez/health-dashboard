@@ -1,4 +1,4 @@
-import { useMemo, useState, lazy, Suspense, useRef, useEffect, type ReactNode } from 'react'
+import { useMemo, useState, useEffect, useCallback, lazy, Suspense, Fragment, type ReactNode } from 'react'
 import {
   XAxis, YAxis, Tooltip, BarChart, Bar,
   CartesianGrid, Area, AreaChart,
@@ -7,11 +7,12 @@ import type { HealthData, DailyMetrics } from './types'
 import {
   LayoutDashboard, Trophy, CalendarDays, CalendarRange, Heart, Activity,
   Scale, Moon, Sun, Headphones, GitCompareArrows, Dumbbell, Route, Map, Upload,
-  Gauge, AlertTriangle, Sparkles,
+  Gauge, AlertTriangle, Sparkles, Droplets, PanelLeftClose, PanelLeftOpen,
+  SunMedium, MoonStar,
 } from 'lucide-react'
 import { computeTrends, computeExtraTrends, groupedAverage, workoutSummary, monthlyWorkouts } from './analysis'
 import type { ExtraTrendInput } from './analysis'
-import { COLORS, tooltipStyle, chartMargin, StatBox, ChartCard, shortDateCompact, shortMonth, fmt } from './ui'
+import { COLORS, tooltipStyle, chartMargin, StatBox, ChartCard, SectionHeader, shortDateCompact, shortMonth, fmt, humanizeWorkoutType } from './ui'
 
 const TrainingViewer = lazy(() => import('./TrainingViewer'))
 const SleepAnalysis = lazy(() => import('./SleepAnalysis'))
@@ -29,64 +30,90 @@ const CalendarHeatmap = lazy(() => import('./CalendarHeatmap'))
 const HealthScoreView = lazy(() => import('./HealthScoreView'))
 const AnomalyDetection = lazy(() => import('./AnomalyDetection'))
 const AIInsights = lazy(() => import('./AIInsights'))
+const MenstrualCycle = lazy(() => import('./MenstrualCycle'))
+const GarminTraining = lazy(() => import('./GarminTraining'))
 
 type TimeRange = '3m' | '6m' | '1y' | 'all'
 type Granularity = 'daily' | 'weekly' | 'monthly'
-type Tab = 'overview' | 'score' | 'anomalies' | 'insights' | 'records' | 'yearly' | 'calendar' | 'cardio' | 'ecg' | 'body' | 'sleep' | 'daylight' | 'audio' | 'correlations' | 'trainings' | 'compare' | 'heatmap'
+type Tab = 'overview' | 'score' | 'anomalies' | 'insights' | 'records' | 'yearly' | 'calendar' | 'cardio' | 'ecg' | 'body' | 'sleep' | 'menstrual' | 'daylight' | 'audio' | 'correlations' | 'trainings' | 'compare' | 'heatmap' | 'garmin-training'
 
-const Loading = <div className="text-zinc-400 animate-pulse py-20 text-center">Loading...</div>
+const Loading = <div className="text-zinc-400 dark:text-zinc-400 animate-pulse py-20 text-center">Loading...</div>
 
-function TabDropdown({ tabs, value, onChange }: { tabs: { key: string; label: string; icon: ReactNode }[]; value: string; onChange: (v: Tab) => void }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+const GROUP_LABELS: Record<number, string> = {
+  1: 'Dashboard',
+  2: 'History',
+  3: 'Health',
+  4: 'Analysis',
+  5: 'Routes',
+}
+
+const VALID_TABS = new Set<Tab>(['overview', 'score', 'anomalies', 'insights', 'records', 'yearly', 'calendar', 'cardio', 'ecg', 'body', 'sleep', 'menstrual', 'daylight', 'audio', 'correlations', 'trainings', 'compare', 'heatmap', 'garmin-training'])
+const VALID_RANGES = new Set<TimeRange>(['3m', '6m', '1y', 'all'])
+const VALID_GRANULARITIES = new Set<Granularity>(['daily', 'weekly', 'monthly'])
+
+function parseHash(): { tab?: Tab; range?: TimeRange; granularity?: Granularity } {
+  const hash = window.location.hash.slice(1)
+  if (!hash) return {}
+  const params = new URLSearchParams(hash)
+  const t = params.get('tab') as Tab | null
+  const r = params.get('range') as TimeRange | null
+  const g = params.get('granularity') as Granularity | null
+  return {
+    tab: t && VALID_TABS.has(t) ? t : undefined,
+    range: r && VALID_RANGES.has(r) ? r : undefined,
+    granularity: g && VALID_GRANULARITIES.has(g) ? g : undefined,
+  }
+}
+
+function useTheme() {
+  const [theme, setThemeState] = useState<'light' | 'dark'>(() => {
+    const stored = localStorage.getItem('health-dashboard-theme')
+    if (stored === 'light' || stored === 'dark') return stored
+    return 'dark'
+  })
+
+  const setTheme = useCallback((t: 'light' | 'dark') => {
+    setThemeState(t)
+    localStorage.setItem('health-dashboard-theme', t)
+  }, [])
 
   useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    document.documentElement.classList.toggle('light', theme === 'light')
+  }, [theme])
 
-  const current = tabs.find(t => t.key === value)
-
-  return (
-    <div ref={ref} className="relative 2xl:hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-100 hover:bg-zinc-800 transition-colors"
-      >
-        {current?.icon}
-        {current?.label || value}
-        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className={`transition-transform ${open ? 'rotate-180' : ''}`}>
-          <path d="M1 1L5 5L9 1" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-lg py-1 shadow-xl z-[100] min-w-[140px]">
-          {tabs.map(t => (
-            <button
-              key={t.key}
-              onClick={() => { onChange(t.key as Tab); setOpen(false) }}
-              className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${
-                t.key === value ? 'text-white bg-zinc-800' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
-              }`}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  return [theme, setTheme] as const
 }
 
 export default function Dashboard({ data, onReset }: { data: HealthData; onReset: () => void }) {
-  const [range, setRange] = useState<TimeRange>('all')
-  const [granularity, setGranularity] = useState<Granularity>('weekly')
-  const [tab, setTab] = useState<Tab>('overview')
+  const initial = parseHash()
+  const [range, setRange] = useState<TimeRange>(initial.range ?? 'all')
+  const [granularity, setGranularity] = useState<Granularity>(initial.granularity ?? 'weekly')
+  const [tab, setTab] = useState<Tab>(initial.tab ?? 'overview')
+  const [theme, setTheme] = useTheme()
+
+  // Sync state → URL hash
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (tab !== 'overview') params.set('tab', tab)
+    if (range !== 'all') params.set('range', range)
+    if (granularity !== 'weekly') params.set('granularity', granularity)
+    const hash = params.toString()
+    const newUrl = hash ? `#${hash}` : window.location.pathname
+    window.history.replaceState(null, '', newUrl)
+  }, [tab, range, granularity])
+
+  // Listen for browser back/forward
+  useEffect(() => {
+    const onHashChange = () => {
+      const parsed = parseHash()
+      if (parsed.tab) setTab(parsed.tab)
+      if (parsed.range) setRange(parsed.range)
+      if (parsed.granularity) setGranularity(parsed.granularity)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
   const hasGpx = data.gpxFiles.size > 0
   const hasSleep = data.sleepRecords.length > 0
   const hasBody = data.bodyRecords.length > 0
@@ -94,6 +121,8 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
   const hasEcg = data.ecgFiles.size > 0
   const hasAudio = data.dailyAudio.length > 0
   const hasDaylight = data.dailyDaylight.length > 0
+  const hasMenstrual = data.menstrualRecords.length > 0
+  const hasGarmin = data.sourceMode === 'garmin' && !!data.garminMetrics
 
   const allMetrics = useMemo(() => {
     return Array.from(data.dailyMetrics.values()).sort((a, b) => a.date.localeCompare(b.date))
@@ -152,6 +181,11 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
     return [...base, ...extra].sort((a, b) => b.changePercent - a.changePercent)
   }, [allMetrics, data])
 
+  const trendFor = (metric: string) => {
+    const t = trends.find(t => t.metric === metric)
+    return t ? { direction: t.direction, positive: t.positive, changePercent: t.changePercent } : undefined
+  }
+
   const stepsData = useMemo(() => groupedAverage(filteredMetrics, 'steps', granularity), [filteredMetrics, granularity])
   const hrData = useMemo(() => groupedAverage(filteredMetrics, 'restingHeartRate', granularity), [filteredMetrics, granularity])
   const hrvData = useMemo(() => groupedAverage(filteredMetrics, 'hrv', granularity), [filteredMetrics, granularity])
@@ -171,91 +205,183 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
   const latestVO2 = findLatest(allMetrics, 'vo2max')
   const totalWorkouts = data.workouts.length
 
-  const tabs: { key: Tab; label: string; icon: ReactNode; show: boolean }[] = [
-    { key: 'overview', label: 'Overview', icon: <LayoutDashboard size={13} />, show: true },
-    { key: 'score', label: 'Score', icon: <Gauge size={13} />, show: true },
-    { key: 'anomalies', label: 'Anomalies', icon: <AlertTriangle size={13} />, show: true },
-    { key: 'insights', label: 'AI Insights', icon: <Sparkles size={13} />, show: true },
-    { key: 'records', label: 'Records', icon: <Trophy size={13} />, show: true },
-    { key: 'yearly', label: 'Yearly', icon: <CalendarDays size={13} />, show: true },
-    { key: 'calendar', label: 'Calendar', icon: <CalendarRange size={13} />, show: true },
-    { key: 'cardio', label: 'Cardio', icon: <Heart size={13} />, show: hasCardio },
-    { key: 'ecg', label: 'ECG', icon: <Activity size={13} />, show: hasEcg },
-    { key: 'body', label: 'Body', icon: <Scale size={13} />, show: hasBody },
-    { key: 'sleep', label: 'Sleep', icon: <Moon size={13} />, show: hasSleep },
-    { key: 'daylight', label: 'Daylight', icon: <Sun size={13} />, show: hasDaylight },
-    { key: 'audio', label: 'Audio', icon: <Headphones size={13} />, show: hasAudio },
-    { key: 'correlations', label: 'Correlations', icon: <GitCompareArrows size={13} />, show: true },
-    { key: 'trainings', label: 'Trainings', icon: <Dumbbell size={13} />, show: hasGpx },
-    { key: 'compare', label: 'Compare', icon: <Route size={13} />, show: hasGpx },
-    { key: 'heatmap', label: 'Heatmap', icon: <Map size={13} />, show: hasGpx },
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  const tabs: { key: Tab; label: string; icon: ReactNode; show: boolean; group: number }[] = [
+    { key: 'overview', label: 'Overview', icon: <LayoutDashboard size={16} />, show: true, group: 1 },
+    { key: 'score', label: 'Score', icon: <Gauge size={16} />, show: true, group: 1 },
+    { key: 'anomalies', label: 'Anomalies', icon: <AlertTriangle size={16} />, show: true, group: 1 },
+    { key: 'insights', label: 'AI Insights', icon: <Sparkles size={16} />, show: true, group: 1 },
+    { key: 'records', label: 'Records', icon: <Trophy size={16} />, show: true, group: 2 },
+    { key: 'yearly', label: 'Yearly', icon: <CalendarDays size={16} />, show: true, group: 2 },
+    { key: 'calendar', label: 'Calendar', icon: <CalendarRange size={16} />, show: true, group: 2 },
+    { key: 'cardio', label: 'Cardio', icon: <Heart size={16} />, show: hasCardio, group: 3 },
+    { key: 'ecg', label: 'ECG', icon: <Activity size={16} />, show: hasEcg, group: 3 },
+    { key: 'body', label: 'Body', icon: <Scale size={16} />, show: hasBody, group: 3 },
+    { key: 'sleep', label: 'Sleep', icon: <Moon size={16} />, show: hasSleep, group: 3 },
+    { key: 'menstrual', label: 'Cycle', icon: <Droplets size={16} />, show: hasMenstrual || data.profile.sex === 'HKBiologicalSexFemale', group: 3 },
+    { key: 'daylight', label: 'Daylight', icon: <Sun size={16} />, show: hasDaylight, group: 3 },
+    { key: 'audio', label: 'Audio', icon: <Headphones size={16} />, show: hasAudio, group: 3 },
+    { key: 'correlations', label: 'Correlations', icon: <GitCompareArrows size={16} />, show: true, group: 4 },
+    { key: 'trainings', label: 'Trainings', icon: <Dumbbell size={16} />, show: hasGpx, group: 5 },
+    { key: 'compare', label: 'Compare', icon: <Route size={16} />, show: hasGpx, group: 5 },
+    { key: 'heatmap', label: 'Heatmap', icon: <Map size={16} />, show: hasGpx, group: 5 },
+    { key: 'garmin-training', label: 'Training', icon: <Activity size={16} />, show: hasGarmin, group: 3 },
   ]
+  const visibleTabs = tabs.filter(t => t.show)
+
+  const showControls = tab === 'overview' || tab === 'score' || tab === 'cardio' || tab === 'body' || tab === 'sleep' || tab === 'menstrual' || tab === 'daylight' || tab === 'audio' || tab === 'calendar' || tab === 'garmin-training'
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800 px-4 py-3 flex flex-wrap items-center gap-3 sticky top-0 bg-zinc-950/90 backdrop-blur-sm z-[100]">
-        {/* Custom dropdown on smaller screens */}
-        <TabDropdown tabs={tabs.filter(t => t.show)} value={tab} onChange={setTab} />
-        {/* Button bar on wide screens */}
-        <nav className="hidden 2xl:flex gap-1 bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
-          {tabs.filter(t => t.show).map(t => (
+      {/* Desktop sidebar */}
+      <aside
+        style={{ width: sidebarOpen ? 176 : 48 }}
+        className="hidden md:flex fixed top-0 left-0 h-screen border-r border-zinc-800 bg-zinc-950 flex-col z-[100] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[width]"
+      >
+        {/* Collapse toggle */}
+        <div className="flex items-center px-2 py-3 min-h-[48px]">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors"
+          >
+            {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+          </button>
+          <span className={`ml-1 text-[11px] font-semibold tracking-wider uppercase text-zinc-500 whitespace-nowrap transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>Health</span>
+        </div>
+
+        {/* Nav items */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-3 space-y-0.5">
+          {visibleTabs.map((t, i) => {
+            const isNewGroup = i > 0 && t.group !== visibleTabs[i - 1].group
+            const isFirstItem = i === 0
+            return (
+              <Fragment key={t.key}>
+                {(isNewGroup || isFirstItem) && (
+                  <div className={`overflow-hidden whitespace-nowrap transition-all duration-300 px-2 ${sidebarOpen ? 'opacity-100' : 'max-h-0 opacity-0'} ${isNewGroup ? 'pt-3 pb-1' : 'pb-1'}`}>
+                    <span className="text-[10px] font-medium tracking-wider uppercase text-zinc-600">{GROUP_LABELS[isFirstItem ? visibleTabs[0].group : t.group]}</span>
+                  </div>
+                )}
+                {isNewGroup && !sidebarOpen && (
+                  <div className="h-px bg-zinc-800 my-2 mx-1" />
+                )}
+                <button
+                  onClick={() => setTab(t.key)}
+                  className={`group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition-colors duration-150 ${
+                    tab === t.key
+                      ? 'bg-zinc-800 text-white'
+                      : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50'
+                  }`}
+                >
+                  <span className="shrink-0">{t.icon}</span>
+                  <span className={`text-[13px] whitespace-nowrap transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>{t.label}</span>
+                  <span className={`absolute left-full ml-2 px-2.5 py-1 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 whitespace-nowrap pointer-events-none shadow-lg z-50 transition-opacity duration-150 ${sidebarOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+                    {t.label}
+                  </span>
+                </button>
+              </Fragment>
+            )
+          })}
+        </nav>
+
+        {/* Bottom actions */}
+        <div className="border-t border-zinc-800 dark:border-zinc-800 px-2 py-3 space-y-0.5">
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors duration-150"
+          >
+            {theme === 'dark' ? <SunMedium size={16} className="shrink-0" /> : <MoonStar size={16} className="shrink-0" />}
+            <span className={`text-[13px] whitespace-nowrap transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            <span className={`absolute left-full ml-2 px-2.5 py-1 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 whitespace-nowrap pointer-events-none shadow-lg z-50 transition-opacity duration-150 ${sidebarOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            </span>
+          </button>
+          <button
+            onClick={onReset}
+            className="group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors duration-150"
+          >
+            <Upload size={16} className="shrink-0" />
+            <span className={`text-[13px] whitespace-nowrap transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>New import</span>
+            <span className={`absolute left-full ml-2 px-2.5 py-1 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 whitespace-nowrap pointer-events-none shadow-lg z-50 transition-opacity duration-150 ${sidebarOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+              New import
+            </span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile bottom bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[100] bg-zinc-950/95 backdrop-blur-sm border-t border-zinc-800">
+        <div className="flex overflow-x-auto scrollbar-none">
+          {visibleTabs.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`px-3 py-1 text-xs rounded-md transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-                tab === t.key ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+              className={`flex flex-col items-center gap-1 px-3 py-2.5 min-w-[56px] shrink-0 transition-colors ${
+                tab === t.key ? 'text-white' : 'text-zinc-500'
               }`}
             >
               {t.icon}
-              {t.label}
+              <span className="text-[9px] leading-none">{t.label}</span>
             </button>
           ))}
-        </nav>
-        <div className="flex items-center gap-2 ml-auto shrink-0">
-          {(tab === 'overview' || tab === 'score' || tab === 'cardio' || tab === 'body' || tab === 'sleep' || tab === 'daylight' || tab === 'audio' || tab === 'calendar') && (
-            <>
-              <div className="flex bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
-                {(['daily', 'weekly', 'monthly'] as Granularity[]).map(g => (
-                  <button
-                    key={g}
-                    onClick={() => setGranularity(g)}
-                    className={`px-2.5 py-1 text-xs rounded-md transition-colors capitalize ${
-                      granularity === g ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    {g.charAt(0).toUpperCase() + g.slice(1, 3)}
-                  </button>
-                ))}
-              </div>
-              <div className="flex bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
-                {(['3m', '6m', '1y', 'all'] as TimeRange[]).map(r => (
-                  <button
-                    key={r}
-                    onClick={() => {
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="flex flex-col items-center gap-1 px-3 py-2.5 min-w-[56px] shrink-0 text-zinc-500 transition-colors"
+          >
+            {theme === 'dark' ? <SunMedium size={16} /> : <MoonStar size={16} />}
+            <span className="text-[9px] leading-none">Theme</span>
+          </button>
+          <button
+            onClick={onReset}
+            className="flex flex-col items-center gap-1 px-3 py-2.5 min-w-[56px] shrink-0 text-zinc-500 transition-colors"
+          >
+            <Upload size={16} />
+            <span className="text-[9px] leading-none">New</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Main content — margin for desktop sidebar, padding-bottom for mobile bar */}
+      <div style={{ marginLeft: sidebarOpen ? 176 : 48 }} className="min-w-0 max-md:!ml-0 pb-16 md:pb-0">
+        {/* Top bar with controls */}
+        {showControls && (
+          <header className="sticky top-0 bg-zinc-950/90 backdrop-blur-sm z-50 border-b border-zinc-800 px-4 md:px-6 py-2.5 flex items-center gap-2 justify-end">
+            <div className="flex bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
+              {(['daily', 'weekly', 'monthly'] as Granularity[]).map(g => (
+                <button
+                  key={g}
+                  onClick={() => setGranularity(g)}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-colors capitalize ${
+                    granularity === g ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {g.charAt(0).toUpperCase() + g.slice(1, 3)}
+                </button>
+              ))}
+            </div>
+            <div className="flex bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
+              {(['3m', '6m', '1y', 'all'] as TimeRange[]).map(r => (
+                <button
+                  key={r}
+                  onClick={() => {
                     setRange(r)
                     if (r === '3m') setGranularity('daily')
                     else if (r === '6m') setGranularity('weekly')
                     else if (r === '1y') setGranularity('weekly')
                     else setGranularity('weekly')
                   }}
-                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                      range === r ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    {r.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          <button onClick={onReset} className="text-zinc-500 hover:text-zinc-300 text-xs whitespace-nowrap flex items-center gap-1.5">
-            <Upload size={12} />
-            New
-          </button>
-        </div>
-      </header>
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    range === r ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {r.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </header>
+        )}
 
-      <main className="px-6 py-6 space-y-4">
+      <main className="px-4 md:px-6 py-6 space-y-6">
         {tab === 'score' && (
           <Suspense fallback={Loading}>
             <HealthScoreView data={data} cutoffDate={cutoffDate} />
@@ -316,6 +442,12 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           </Suspense>
         )}
 
+        {tab === 'menstrual' && (
+          <Suspense fallback={Loading}>
+            <MenstrualCycle menstrualRecords={data.menstrualRecords} wristTempRecords={data.wristTempRecords} cutoffDate={cutoffDate} />
+          </Suspense>
+        )}
+
         {tab === 'daylight' && hasDaylight && (
           <Suspense fallback={Loading}>
             <Daylight dailyDaylight={data.dailyDaylight} cutoffDate={cutoffDate} granularity={granularity} />
@@ -352,55 +484,48 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           </Suspense>
         )}
 
+        {tab === 'garmin-training' && hasGarmin && data.garminMetrics && (
+          <Suspense fallback={Loading}>
+            <GarminTraining garminMetrics={data.garminMetrics} granularity={granularity} dateRange={[cutoffDate || '2000-01-01', '2099-12-31']} />
+          </Suspense>
+        )}
+
         {tab === 'overview' && <>
         {/* Key Metrics */}
+        <SectionHeader>At a Glance</SectionHeader>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-3">
-          <StatBox label="Steps" value={fmt(avgSteps)} unit="/day" sub="30d avg" />
-          <StatBox label="Sleep" value={fmt(avgSleep, 1)} unit="hrs" sub="30d avg" />
-          <StatBox label="Resting HR" value={fmt(avgHR, 0)} unit="bpm" sub="30d avg" />
-          <StatBox label="HRV" value={fmt(avgHRV, 0)} unit="ms" sub="30d avg" />
-          <StatBox label="Weight" value={fmt(latestWeight, 1)} unit="kg" sub="Latest" />
-          <StatBox label="VO2 Max" value={fmt(latestVO2, 1)} unit="mL/kg/min" sub="Latest" />
-          <StatBox label="Distance" value={fmt(avgMetric(recent30, 'distance'), 1)} unit="km/day" sub="30d avg" />
+          <StatBox label="Steps" value={fmt(avgSteps)} unit="/day" trend={trendFor('Steps')} sub="30d avg" />
+          <StatBox label="Sleep" value={fmt(avgSleep, 1)} unit="hrs" trend={trendFor('Sleep')} sub="30d avg" />
+          <StatBox label="Resting HR" value={fmt(avgHR, 0)} unit="bpm" trend={trendFor('Resting Heart Rate')} sub="30d avg" />
+          <StatBox label="HRV" value={fmt(avgHRV, 0)} unit="ms" trend={trendFor('Heart Rate Variability')} sub="30d avg" />
+          <StatBox label="Weight" value={fmt(latestWeight, 1)} unit="kg" trend={trendFor('Weight')} sub="Latest" />
+          <StatBox label="VO2 Max" value={fmt(latestVO2, 1)} unit="mL/kg/min" trend={trendFor('VO2 Max')} sub="Latest" />
+          <StatBox label="Distance" value={fmt(avgMetric(recent30, 'distance'), 1)} unit="km/day" trend={trendFor('Distance')} sub="30d avg" />
           <StatBox label="Workouts" value={`${totalWorkouts}`} unit="total" sub={`${workoutsByMonth.length > 0 ? workoutsByMonth[workoutsByMonth.length - 1]?.count || 0 : 0} this month`} />
         </div>
 
-        {/* Trends bars */}
+        {/* Trends grid */}
         {trends.length > 0 && (
-          <div className="space-y-2">
-            {trends.some(t => t.positive) && (
-              <div className="flex flex-wrap border border-zinc-800 rounded-lg bg-zinc-900/50 divide-x divide-zinc-800/50">
-                {trends.filter(t => t.positive).map(t => (
-                  <div key={t.metric} className="flex items-center gap-1.5 px-4 py-2.5 shrink-0">
-                    <span className="text-sm text-zinc-200">{t.metric}</span>
-                    <span className="text-sm font-mono font-medium text-green-400">
-                      {t.direction === 'up' ? '▲' : '▼'} {t.changePercent}%
-                    </span>
-                    <span className="text-xs text-zinc-500">{fmt(t.recentAvg, 1)} {t.unit}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {trends.some(t => !t.positive) && (
-              <div className="flex flex-wrap border border-zinc-800 rounded-lg bg-zinc-900/50 divide-x divide-zinc-800/50">
-                {trends.filter(t => !t.positive).map(t => (
-                  <div key={t.metric} className="flex items-center gap-1.5 px-4 py-2.5 shrink-0">
-                    <span className="text-sm text-zinc-200">{t.metric}</span>
-                    <span className="text-sm font-mono font-medium text-red-400">
-                      {t.direction === 'up' ? '▲' : '▼'} {t.changePercent}%
-                    </span>
-                    <span className="text-xs text-zinc-500">{fmt(t.recentAvg, 1)} {t.unit}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <>
+            <SectionHeader>30-Day Trends</SectionHeader>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2">
+              {trends.map(t => (
+                <div key={t.metric} className="flex items-center justify-between bg-zinc-900 rounded-lg border border-zinc-800 px-3 py-2">
+                  <span className="text-xs text-zinc-400 truncate mr-2">{t.metric}</span>
+                  <span className={`text-xs font-medium tabular-nums whitespace-nowrap ${t.positive ? 'text-green-400' : 'text-red-400'}`}>
+                    {t.direction === 'up' ? '+' : '−'}{t.changePercent}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* Key charts */}
+        <SectionHeader>Charts</SectionHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             {stepsData.length > 0 && (
-              <ChartCard title="Steps">
+              <ChartCard title="Steps" chartData={stepsData}>
                 <AreaChart margin={chartMargin} data={stepsData}>
                   <defs>
                     <linearGradient id="stepsGrad" x1="0" y1="0" x2="0" y2="1">
@@ -409,7 +534,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                   <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
                   <Tooltip {...tooltipStyle} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.blue} fill="url(#stepsGrad)" strokeWidth={1.5} dot={false} />
@@ -418,7 +543,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
             )}
 
             {sleepData.length > 0 && (
-              <ChartCard title="Sleep">
+              <ChartCard title="Sleep" chartData={sleepData}>
                 <AreaChart margin={chartMargin} data={sleepData}>
                   <defs>
                     <linearGradient id="sleepGrad" x1="0" y1="0" x2="0" y2="1">
@@ -427,7 +552,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
                   <Tooltip {...tooltipStyle} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.cyan} fill="url(#sleepGrad)" strokeWidth={1.5} dot={false} />
@@ -436,7 +561,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
             )}
 
             {hrData.length > 0 && (
-              <ChartCard title="Resting Heart Rate">
+              <ChartCard title="Resting Heart Rate" chartData={hrData}>
                 <AreaChart margin={chartMargin} data={hrData}>
                   <defs>
                     <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
@@ -445,7 +570,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
                   <Tooltip {...tooltipStyle} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.red} fill="url(#hrGrad)" strokeWidth={1.5} dot={false} />
@@ -454,7 +579,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
             )}
 
             {hrvData.length > 0 && (
-              <ChartCard title="Heart Rate Variability">
+              <ChartCard title="Heart Rate Variability" chartData={hrvData}>
                 <AreaChart margin={chartMargin} data={hrvData}>
                   <defs>
                     <linearGradient id="hrvGrad2" x1="0" y1="0" x2="0" y2="1">
@@ -463,7 +588,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
                   <Tooltip {...tooltipStyle} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.purple} fill="url(#hrvGrad2)" strokeWidth={1.5} dot={false} />
@@ -475,7 +600,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
         {/* Secondary charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           {distanceData.length > 0 && (
-            <ChartCard title="Distance (km)">
+            <ChartCard title="Distance (km)" chartData={distanceData}>
               <AreaChart margin={chartMargin} data={distanceData}>
                 <defs>
                   <linearGradient id="distGrad" x1="0" y1="0" x2="0" y2="1">
@@ -484,7 +609,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                 <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
                 <Tooltip {...tooltipStyle} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.green} fill="url(#distGrad)" strokeWidth={1.5} dot={false} />
@@ -493,7 +618,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           )}
 
           {weightData.length > 0 && (
-            <ChartCard title="Weight (kg)">
+            <ChartCard title="Weight (kg)" chartData={weightData}>
               <AreaChart margin={chartMargin} data={weightData}>
                 <defs>
                   <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
@@ -502,7 +627,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
                 <Tooltip {...tooltipStyle} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.orange} fill="url(#weightGrad)" strokeWidth={1.5} dot={false} />
@@ -511,10 +636,10 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           )}
 
           {workoutsByMonth.length > 0 && (
-            <ChartCard title="Monthly Workouts">
+            <ChartCard title="Monthly Workouts" chartData={workoutsByMonth}>
               <BarChart margin={chartMargin} data={workoutsByMonth}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortMonth} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortMonth} interval="preserveStartEnd" minTickGap={40} />
                 <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
                 <Tooltip {...tooltipStyle} />
                 <Bar dataKey="count" fill={COLORS.pink} radius={[4, 4, 0, 0]} />
@@ -525,18 +650,21 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
 
         {/* Workout breakdown */}
         {topWorkouts.length > 0 && (
-          <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">Workout Types ({totalWorkouts} total)</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-              {topWorkouts.map(w => (
-                <div key={w.type} className="bg-zinc-800/50 rounded-lg p-3 min-w-0">
-                  <div className="text-sm font-medium text-zinc-200 truncate" title={w.type}>{w.type}</div>
-                  <div className="text-lg font-semibold text-zinc-100 mt-1">{w.count}<span className="text-xs text-zinc-500 ml-1">sessions</span></div>
-                  <div className="text-xs text-zinc-500 mt-0.5 truncate">{Math.round(w.totalMinutes / 60)}h · {fmt(w.totalCalories)} kcal</div>
-                </div>
-              ))}
+          <>
+            <SectionHeader>Workouts</SectionHeader>
+            <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+              <h3 className="text-sm font-medium text-zinc-300 mb-3">Workout Types ({totalWorkouts} total)</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+                {topWorkouts.map(w => (
+                  <div key={w.type} className="bg-zinc-800/50 rounded-lg p-3 min-w-0">
+                    <div className="text-sm font-medium text-zinc-200 truncate" title={w.type}>{humanizeWorkoutType(w.type)}</div>
+                    <div className="text-lg font-semibold text-zinc-100 mt-1">{w.count}<span className="text-xs text-zinc-500 ml-1">sessions</span></div>
+                    <div className="text-xs text-zinc-500 mt-0.5 truncate">{Math.round(w.totalMinutes / 60)}h · {fmt(w.totalCalories)} kcal</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         </>}
@@ -545,6 +673,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           All data processed locally in your browser. Nothing is sent to any server.
         </footer>
       </main>
+      </div>
     </div>
   )
 }

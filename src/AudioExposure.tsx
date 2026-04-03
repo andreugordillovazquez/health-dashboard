@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import type { DailyAudio } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, tooltipStyle, chartMargin, COLORS, shortDate, shortMonth, avg } from './ui'
+import { StatBox, AISummaryButton, TabHeader, tooltipStyle, chartMargin, COLORS, shortDate, shortMonth, avg } from './ui'
 
 // WHO/NIOSH safe exposure thresholds
 const SAFE_HEADPHONE_DB = 80 // 80 dB for prolonged exposure
@@ -101,6 +101,7 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
 
   return (
     <div className="space-y-6">
+      <TabHeader title="Audio Exposure" description="Headphone audio levels and environmental noise exposure to help protect your hearing." />
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {avgHeadphone.length > 0 && (
@@ -141,8 +142,13 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
         {/* Headphone levels */}
         {weeklyHeadphone.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">Headphone Audio Levels (weekly)</h3>
-            <p className="text-xs text-zinc-500 mb-3">Average and peak levels. WHO safe limit: 80 dB for prolonged exposure.</p>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Headphone Audio Levels (weekly)</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Average and peak levels. WHO safe limit: 80 dB for prolonged exposure.</p>
+              </div>
+              <AISummaryButton title="Headphone Audio Levels (weekly)" description="Average and peak levels. WHO safe limit: 80 dB for prolonged exposure." chartData={weeklyHeadphone} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={weeklyHeadphone}>
@@ -168,8 +174,13 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
         {/* Environmental levels */}
         {weeklyEnv.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">Environmental Noise (weekly)</h3>
-            <p className="text-xs text-zinc-500 mb-3">Average and peak ambient noise from Apple Watch. Safe limit: 85 dB.</p>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Environmental Noise (weekly)</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Average and peak ambient noise from Apple Watch. Safe limit: 85 dB.</p>
+              </div>
+              <AISummaryButton title="Environmental Noise (weekly)" description="Average and peak ambient noise from Apple Watch. Safe limit: 85 dB." chartData={weeklyEnv} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={weeklyEnv}>
@@ -196,7 +207,12 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
       {/* Monthly listening time */}
       {monthlyExposure.length > 1 && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-3">Monthly Exposure Time (hours)</h3>
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Monthly Exposure Time (hours)</h3>
+            </div>
+            <AISummaryButton title="Monthly Exposure Time (hours)" chartData={monthlyExposure} />
+          </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <BarChart margin={chartMargin} data={monthlyExposure}>

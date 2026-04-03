@@ -4,7 +4,7 @@ import {
   CartesianGrid, BarChart, Bar, ReferenceLine,
 } from 'recharts'
 import type { Granularity } from './analysis'
-import { StatBox, tooltipStyle, COLORS, shortDate, avg } from './ui'
+import { StatBox, AISummaryButton, TabHeader, tooltipStyle, COLORS, shortDate, avg } from './ui'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -81,6 +81,7 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
 
   return (
     <div className="space-y-6">
+      <TabHeader title="Daylight" description="Time spent in daylight — important for circadian rhythm, mood, and vitamin D." />
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatBox
@@ -116,8 +117,13 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
       {/* Weekly trend */}
       {weeklyData.length > 1 && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-1">Daily Daylight Exposure (weekly avg)</h3>
-          <p className="text-xs text-zinc-500 mb-3">Minutes of outdoor light detected by Apple Watch. 30+ min/day supports circadian rhythm, vitamin D, and mood.</p>
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Daily Daylight Exposure (weekly avg)</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Minutes of outdoor light detected by Apple Watch. 30+ min/day supports circadian rhythm, vitamin D, and mood.</p>
+            </div>
+            <AISummaryButton title="Daily Daylight Exposure (weekly avg)" description="Minutes of outdoor light detected by Apple Watch. 30+ min/day supports circadian rhythm, vitamin D, and mood." chartData={weeklyData} />
+          </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <AreaChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={weeklyData}>
@@ -143,8 +149,13 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
         {/* Seasonal pattern */}
         {monthlyPattern.length > 6 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">Seasonal Pattern</h3>
-            <p className="text-xs text-zinc-500 mb-3">Average daily daylight by month (all years combined)</p>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Seasonal Pattern</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Average daily daylight by month (all years combined)</p>
+              </div>
+              <AISummaryButton title="Seasonal Pattern" description="Average daily daylight by month (all years combined)" chartData={monthlyPattern} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <BarChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={monthlyPattern}>
@@ -163,8 +174,13 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
         {/* Monthly over time */}
         {monthlyByYear.length > 2 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">Monthly Average Over Time</h3>
-            <p className="text-xs text-zinc-500 mb-3">Avg daily minutes per month — shows year-over-year trends</p>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Monthly Average Over Time</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Avg daily minutes per month — shows year-over-year trends</p>
+              </div>
+              <AISummaryButton title="Monthly Average Over Time" description="Avg daily minutes per month — shows year-over-year trends" chartData={monthlyByYear} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <BarChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={monthlyByYear}>

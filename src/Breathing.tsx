@@ -4,7 +4,7 @@ import {
   CartesianGrid, AreaChart, Area, ReferenceLine, ScatterChart, Scatter, ZAxis,
 } from 'recharts'
 import type { DailyBreathing } from './types'
-import { StatBox, tooltipStyle, chartMargin, COLORS, shortDate, avg } from './ui'
+import { StatBox, AISummaryButton, TabHeader, tooltipStyle, chartMargin, COLORS, shortDate, avg } from './ui'
 
 // Apple's thresholds for breathing disturbances
 // < 5: not elevated, 5-14.9: mildly elevated, 15-29.9: moderately elevated, >= 30: severely elevated
@@ -119,6 +119,7 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
 
   return (
     <div className="space-y-6">
+      <TabHeader title="Breathing" description="Blood oxygen levels, respiratory rate, and breathing disturbances tracked during sleep." />
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {avgDist !== null && (
@@ -171,8 +172,13 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
       {/* Breathing disturbances */}
       {weeklyDisturbances.length > 1 && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-1">Breathing Disturbances (weekly avg)</h3>
-          <p className="text-xs text-zinc-500 mb-3">Events per hour during sleep. Under 5/hr is normal. Elevated may indicate sleep apnea.</p>
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Breathing Disturbances (weekly avg)</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Events per hour during sleep. Under 5/hr is normal. Elevated may indicate sleep apnea.</p>
+            </div>
+            <AISummaryButton title="Breathing Disturbances (weekly avg)" description="Events per hour during sleep. Under 5/hr is normal. Elevated may indicate sleep apnea." chartData={weeklyDisturbances} />
+          </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <AreaChart margin={chartMargin} data={weeklyDisturbances}>
@@ -199,8 +205,13 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
         {/* Respiratory rate */}
         {weeklyRespRate.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">Respiratory Rate (weekly avg)</h3>
-            <p className="text-xs text-zinc-500 mb-3">Normal adult: 12-20 breaths/min at rest</p>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Respiratory Rate (weekly avg)</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Normal adult: 12-20 breaths/min at rest</p>
+              </div>
+              <AISummaryButton title="Respiratory Rate (weekly avg)" description="Normal adult: 12-20 breaths/min at rest" chartData={weeklyRespRate} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={weeklyRespRate}>
@@ -226,8 +237,13 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
         {/* SpO2 */}
         {weeklySpo2.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">Blood Oxygen (weekly avg)</h3>
-            <p className="text-xs text-zinc-500 mb-3">Normal: 95-100%. Below 90% is concerning.</p>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Blood Oxygen (weekly avg)</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Normal: 95-100%. Below 90% is concerning.</p>
+              </div>
+              <AISummaryButton title="Blood Oxygen (weekly avg)" description="Normal: 95-100%. Below 90% is concerning." chartData={weeklySpo2} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={weeklySpo2}>
@@ -253,8 +269,13 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
       {/* Disturbances vs SpO2 scatter */}
       {distVsSpo2.length > 10 && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-1">Disturbances vs Blood Oxygen</h3>
-          <p className="text-xs text-zinc-500 mb-3">Higher disturbances often correlate with lower SpO2 — a hallmark of sleep apnea.</p>
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Disturbances vs Blood Oxygen</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Higher disturbances often correlate with lower SpO2 — a hallmark of sleep apnea.</p>
+            </div>
+            <AISummaryButton title="Disturbances vs Blood Oxygen" description="Higher disturbances often correlate with lower SpO2 — a hallmark of sleep apnea." chartData={distVsSpo2} />
+          </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <ScatterChart margin={chartMargin}>

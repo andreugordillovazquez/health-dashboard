@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { DailyMetrics, Workout } from './types'
+import { TabHeader } from './ui'
 
 interface YearStats {
   year: string
@@ -115,6 +116,7 @@ export default function YearInReview({ metrics, workouts }: Props) {
 
   return (
     <div className="overflow-x-auto">
+      <TabHeader title="Year in Review" description="A yearly breakdown of your key health and fitness metrics." />
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-zinc-800">

@@ -4,7 +4,7 @@ import {
   CartesianGrid, ZAxis, AreaChart, Area,
 } from 'recharts'
 import type { DailyMetrics, SleepRecord, CaffeineRecord, DailyBreathing, CardioRecord } from './types'
-import { tooltipStyle, ChartCard, shortDateCompact } from './ui'
+import { tooltipStyle, AISummaryButton, shortDateCompact, TabHeader } from './ui'
 
 interface CorrelationResult {
   label: string
@@ -54,23 +54,84 @@ function nextDay(date: string): string {
 }
 
 
-function CorrelationBadge({ result }: { result: CorrelationResult }) {
+interface ChartConfig {
+  data: unknown[]
+  xKey: string
+  yKey: string
+  xName: string
+  yName: string
+  xUnit: string
+  yUnit: string
+  color: string
+  xDomain?: [string | number, string | number]
+  yDomain?: [string | number, string | number]
+  zRange?: [number, number]
+}
+
+function humanInterpretation(result: CorrelationResult): string {
   const strength = Math.abs(result.r)
-  const color = strength > 0.5 ? (result.r > 0 ? 'text-green-400' : 'text-red-400') :
-    strength > 0.3 ? (result.r > 0 ? 'text-green-400/70' : 'text-red-400/70') : 'text-zinc-400'
-  const strengthLabel = strength > 0.5 ? 'Strong' : strength > 0.3 ? 'Moderate' : 'Weak'
+  const [cause, effect] = result.label.split(' → ')
+  if (strength > 0.5) return `In your data, more ${cause.toLowerCase()} is strongly linked to ${result.r > 0 ? 'higher' : 'lower'} ${effect.toLowerCase()}.`
+  if (strength > 0.3) return `There's a moderate pattern: more ${cause.toLowerCase()} tends to come with ${result.r > 0 ? 'higher' : 'lower'} ${effect.toLowerCase()}.`
+  if (strength > 0.15) return `There's a slight trend between ${cause.toLowerCase()} and ${effect.toLowerCase()}, but it's not very consistent.`
+  return `No meaningful pattern found between ${cause.toLowerCase()} and ${effect.toLowerCase()} in your data.`
+}
+
+function CorrelationCard({ result, chart }: { result: CorrelationResult; chart?: ChartConfig }) {
+  const strength = Math.abs(result.r)
+  const barColor = strength > 0.5 ? (result.r > 0 ? '#22c55e' : '#ef4444') :
+    strength > 0.3 ? (result.r > 0 ? '#4ade80' : '#f87171') :
+    strength > 0.15 ? '#a1a1aa' : '#52525b'
+  const strengthLabel = strength > 0.5 ? 'Strong link' : strength > 0.3 ? 'Moderate link' : strength > 0.15 ? 'Weak link' : 'No link'
+  const strengthColor = strength > 0.5 ? 'text-green-400' : strength > 0.3 ? 'text-blue-400' : 'text-zinc-500'
 
   return (
-    <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-4">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-medium text-zinc-200">{result.label}</span>
-        <span className={`text-sm font-mono font-medium ${color}`}>
-          r = {result.r > 0 ? '+' : ''}{result.r.toFixed(2)}
-        </span>
+    <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 space-y-3">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="space-y-1.5 flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium text-zinc-200">{result.label}</span>
+            <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full bg-zinc-800 shrink-0 ${strengthColor}`}>{strengthLabel}</span>
+          </div>
+          {/* Strength bar */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(strength * 100 / 0.7, 100)}%`, backgroundColor: barColor }}
+              />
+            </div>
+            <span className="text-[10px] font-mono text-zinc-600 shrink-0 tabular-nums w-10 text-right">{result.r > 0 ? '+' : ''}{result.r.toFixed(2)}</span>
+          </div>
+        </div>
+        {chart && chart.data.length > 0 && (
+          <div className="ml-2 shrink-0">
+            <AISummaryButton title={result.label} description={result.description} chartData={chart.data} />
+          </div>
+        )}
       </div>
-      <div className="text-xs text-zinc-500">
-        {strengthLabel} · {result.n} data points · {result.description}
-      </div>
+
+      {/* Human explanation */}
+      <p className="text-xs text-zinc-400 leading-relaxed">{humanInterpretation(result)}</p>
+
+      {/* Embedded scatter chart */}
+      {chart && chart.data.length >= 10 && (
+        <div className="h-44 -mx-1">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
+            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+              <XAxis dataKey={chart.xKey} name={chart.xName} unit={chart.xUnit} tick={{ fontSize: 10, fill: '#71717a' }} />
+              <YAxis dataKey={chart.yKey} name={chart.yName} unit={chart.yUnit} domain={chart.yDomain || ['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
+              <ZAxis range={chart.zRange || [20, 40]} />
+              <Tooltip {...tooltipStyle} />
+              <Scatter data={chart.data as Record<string, unknown>[]} fill={chart.color} opacity={0.5} />
+            </ScatterChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="text-[10px] text-zinc-600">{result.n.toLocaleString()} data points</div>
     </div>
   )
 }
@@ -352,167 +413,68 @@ export default function Correlations({ metrics, sleepRecords, caffeineRecords, d
     return <div className="text-zinc-500 text-center py-20">Not enough overlapping data to compute correlations.</div>
   }
 
+  // Build chart configs keyed by label
+  const chartConfigs = useMemo(() => {
+    const configs: Record<string, ChartConfig> = {}
+    if (sleepHrvData.length >= 10) configs['Sleep → Next-day HRV'] = { data: sleepHrvData, xKey: 'sleep', yKey: 'hrv', xName: 'Sleep', yName: 'HRV', xUnit: 'h', yUnit: ' ms', color: '#8b5cf6' }
+    if (sleepHrData.length >= 10) configs['Sleep → Next-day Resting HR'] = { data: sleepHrData, xKey: 'sleep', yKey: 'hr', xName: 'Sleep', yName: 'Resting HR', xUnit: 'h', yUnit: ' bpm', color: '#ef4444' }
+    if (exerciseHrData.length >= 10) configs['Weekly Exercise → Resting HR'] = { data: exerciseHrData, xKey: 'exercise', yKey: 'hr', xName: 'Exercise', yName: 'Resting HR', xUnit: ' min', yUnit: ' bpm', color: '#22c55e', zRange: [25, 50] }
+    if (exerciseHrvData.length >= 10) configs['Exercise → Next-day HRV'] = { data: exerciseHrvData, xKey: 'exercise', yKey: 'hrv', xName: 'Exercise', yName: 'HRV', xUnit: ' min', yUnit: ' ms', color: '#a855f7' }
+    if (exerciseSleepData.length >= 10) configs['Exercise → Sleep Duration'] = { data: exerciseSleepData, xKey: 'exercise', yKey: 'sleep', xName: 'Exercise', yName: 'Sleep', xUnit: ' min', yUnit: 'h', color: '#06b6d4' }
+    if (stepsSleepData.length >= 10) configs['Steps → Sleep Duration'] = { data: stepsSleepData, xKey: 'steps', yKey: 'sleep', xName: 'Steps', yName: 'Sleep', xUnit: '', yUnit: 'h', color: '#3b82f6' }
+    if (stepsHrData.length >= 10) configs['Weekly Steps → Resting HR'] = { data: stepsHrData, xKey: 'steps', yKey: 'hr', xName: 'Steps', yName: 'Resting HR', xUnit: '', yUnit: ' bpm', color: '#f97316', zRange: [25, 50] }
+    if (daylightSleepData.length >= 10) configs['Daylight → Sleep Duration'] = { data: daylightSleepData, xKey: 'daylight', yKey: 'sleep', xName: 'Daylight', yName: 'Sleep', xUnit: ' min', yUnit: 'h', color: '#facc15' }
+    if (daylightHrvData.length >= 10) configs['Daylight → Next-day HRV'] = { data: daylightHrvData, xKey: 'daylight', yKey: 'hrv', xName: 'Daylight', yName: 'HRV', xUnit: ' min', yUnit: ' ms', color: '#facc15' }
+    if (sleepDisturbanceData.length >= 10) configs['Sleep Duration → Breathing Disturbances'] = { data: sleepDisturbanceData, xKey: 'sleep', yKey: 'disturbances', xName: 'Sleep', yName: 'Disturbances', xUnit: 'h', yUnit: '/hr', color: '#ef4444', yDomain: [0, 'auto'] }
+    if (vo2HrData.length >= 10) configs['VO2 Max → Resting HR'] = { data: vo2HrData, xKey: 'vo2', yKey: 'hr', xName: 'VO2 Max', yName: 'Resting HR', xUnit: ' mL/kg/min', yUnit: ' bpm', color: '#22c55e', zRange: [25, 50] }
+    return configs
+  }, [sleepHrvData, sleepHrData, exerciseHrData, exerciseHrvData, exerciseSleepData, stepsSleepData, stepsHrData, daylightSleepData, daylightHrvData, sleepDisturbanceData, vo2HrData])
+
+  // Separate meaningful from weak
+  const meaningful = correlations.filter(c => Math.abs(c.r) > 0.15)
+  const weak = correlations.filter(c => Math.abs(c.r) <= 0.15)
+
   return (
     <div className="space-y-6">
-      {/* Correlation coefficients */}
-      <div>
-        <h2 className="text-sm font-medium text-zinc-300 mb-3">Correlation Strength</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {correlations.map(c => <CorrelationBadge key={c.label} result={c} />)}
+      <TabHeader title="Correlations" description="Discover how your health metrics relate to each other — which habits actually move the needle." />
+      {/* Explainer */}
+      <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+        <h2 className="text-sm font-medium text-zinc-300 mb-1.5">How your habits connect</h2>
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          This page looks at pairs of health metrics to find patterns — for example, whether sleeping more is linked to a better heart rate the next day. A <strong className="text-zinc-300">strong link</strong> means the pattern is very consistent, while a <strong className="text-zinc-300">weak link</strong> means it barely shows up. Each dot in the charts is one data point from your history. A link doesn't prove one thing <em>causes</em> the other — it just means they tend to move together.
+        </p>
+      </div>
+
+      {/* Meaningful correlations — each card has its chart embedded */}
+      {meaningful.length > 0 && (
+        <div>
+          <h2 className="text-sm font-medium text-zinc-300 mb-3">Patterns found in your data</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {meaningful.map(c => <CorrelationCard key={c.label} result={c} chart={chartConfigs[c.label]} />)}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Scatter plots */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-        {sleepHrvData.length >= 10 && (
-          <ChartCard title="Sleep → Next-day HRV" description="Sleep hours vs next morning's HRV">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="sleep" name="Sleep" unit="h" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="hrv" name="HRV" unit=" ms" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[20, 40]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Sleep' ? `${v}h` : `${v} ms`, name]} />
-              <Scatter data={sleepHrvData} fill="#8b5cf6" opacity={0.5} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {sleepHrData.length >= 10 && (
-          <ChartCard title="Sleep → Next-day Resting HR" description="Sleep hours vs next day's resting heart rate">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="sleep" name="Sleep" unit="h" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="hr" name="Resting HR" unit=" bpm" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[20, 40]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Sleep' ? `${v}h` : `${v} bpm`, name]} />
-              <Scatter data={sleepHrData} fill="#ef4444" opacity={0.4} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {exerciseHrData.length >= 10 && (
-          <ChartCard title="Exercise → Resting HR" description="Weekly avg exercise vs resting HR">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="exercise" name="Exercise" unit=" min" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="hr" name="Resting HR" unit=" bpm" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[25, 50]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Exercise' ? `${v} min` : `${v} bpm`, name]} />
-              <Scatter data={exerciseHrData} fill="#22c55e" opacity={0.5} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {exerciseHrvData.length >= 10 && (
-          <ChartCard title="Exercise → Next-day HRV" description="Exercise minutes vs next day's HRV">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="exercise" name="Exercise" unit=" min" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="hrv" name="HRV" unit=" ms" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[20, 40]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Exercise' ? `${v} min` : `${v} ms`, name]} />
-              <Scatter data={exerciseHrvData} fill="#a855f7" opacity={0.4} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {exerciseSleepData.length >= 10 && (
-          <ChartCard title="Exercise → Sleep" description="Exercise minutes vs sleep duration that night">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="exercise" name="Exercise" unit=" min" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="sleep" name="Sleep" unit="h" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[20, 40]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Exercise' ? `${v} min` : `${v}h`, name]} />
-              <Scatter data={exerciseSleepData} fill="#06b6d4" opacity={0.4} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {stepsSleepData.length >= 10 && (
-          <ChartCard title="Steps → Sleep" description="Daily steps vs sleep that night">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="steps" name="Steps" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="sleep" name="Sleep" unit="h" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[20, 40]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Steps' ? `${v}` : `${v}h`, name]} />
-              <Scatter data={stepsSleepData} fill="#3b82f6" opacity={0.4} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {stepsHrData.length >= 10 && (
-          <ChartCard title="Steps → Resting HR" description="Weekly avg steps vs resting HR">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="steps" name="Steps" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="hr" name="Resting HR" unit=" bpm" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[25, 50]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Steps' ? `${v}` : `${v} bpm`, name]} />
-              <Scatter data={stepsHrData} fill="#f97316" opacity={0.5} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {daylightSleepData.length >= 10 && (
-          <ChartCard title="Daylight → Sleep" description="Daylight minutes vs sleep that night">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="daylight" name="Daylight" unit=" min" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="sleep" name="Sleep" unit="h" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[20, 40]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Daylight' ? `${v} min` : `${v}h`, name]} />
-              <Scatter data={daylightSleepData} fill="#facc15" opacity={0.5} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {daylightHrvData.length >= 10 && (
-          <ChartCard title="Daylight → HRV" description="Daylight minutes vs next day's HRV">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="daylight" name="Daylight" unit=" min" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="hrv" name="HRV" unit=" ms" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[20, 40]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Daylight' ? `${v} min` : `${v} ms`, name]} />
-              <Scatter data={daylightHrvData} fill="#facc15" opacity={0.5} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {sleepDisturbanceData.length >= 10 && (
-          <ChartCard title="Sleep → Breathing Disturbances" description="Sleep hours vs breathing events/hr">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="sleep" name="Sleep" unit="h" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="disturbances" name="Disturbances" unit="/hr" domain={[0, 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[20, 40]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'Sleep' ? `${v}h` : `${v}/hr`, name]} />
-              <Scatter data={sleepDisturbanceData} fill="#ef4444" opacity={0.5} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-
-        {vo2HrData.length >= 10 && (
-          <ChartCard title="VO2 Max → Resting HR" description="Fitness level vs resting heart rate">
-            <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="vo2" name="VO2 Max" unit=" mL/kg/min" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey="hr" name="Resting HR" unit=" bpm" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <ZAxis range={[25, 50]} />
-              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'VO2 Max' ? `${v} mL/kg/min` : `${v} bpm`, name]} />
-              <Scatter data={vo2HrData} fill="#22c55e" opacity={0.5} />
-            </ScatterChart>
-          </ChartCard>
-        )}
-      </div>
+      {/* Weak / no link — compact, no chart */}
+      {weak.length > 0 && (
+        <div>
+          <h2 className="text-sm font-medium text-zinc-500 mb-3">No clear pattern</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {weak.map(c => <CorrelationCard key={c.label} result={c} />)}
+          </div>
+        </div>
+      )}
 
       {/* Rolling correlation over time */}
       {rollingCorr.length > 0 && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-1">Sleep-HRV Correlation Over Time</h3>
-          <p className="text-xs text-zinc-500 mb-3">30-day rolling Pearson r — shows how the sleep/HRV relationship evolves</p>
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">How consistent is the sleep-HRV link?</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Tracks whether sleeping more reliably improves your HRV over 30-day windows. Higher = stronger link, near zero = no pattern.</p>
+            </div>
+            <AISummaryButton title="Sleep-HRV link over time" description="How consistently sleep predicts HRV in 30-day windows" chartData={rollingCorr} />
+          </div>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <AreaChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={rollingCorr}>

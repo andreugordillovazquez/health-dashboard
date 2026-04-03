@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { DailyMetrics } from './types'
 import type { Granularity } from './analysis'
+import { TabHeader } from './ui'
 
 const METRICS: { key: keyof DailyMetrics; label: string; unit: string; colorScale: string[] }[] = [
   { key: 'steps', label: 'Steps', unit: 'steps', colorScale: ['#0f1729', '#1e3a5f', '#1d4ed8', '#3b82f6', '#93c5fd'] },
@@ -76,6 +77,7 @@ export default function CalendarHeatmap({ metrics, granularity }: Props) {
 
   return (
     <div className="space-y-4">
+      <TabHeader title="Calendar" description="Daily health metrics visualized as a calendar heatmap — spot patterns at a glance." />
       {/* Year selector */}
       <div className="flex gap-1.5 flex-wrap">
         {years.map(y => (

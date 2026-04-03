@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import type { BodyRecord } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, tooltipStyle, chartMargin, COLORS, shortDate, Legend } from './ui'
+import { StatBox, tooltipStyle, chartMargin, COLORS, shortDate, Legend, AISummaryButton, TabHeader } from './ui'
 
 export default function BodyComposition({ bodyRecords, cutoffDate, granularity: _granularity }: { bodyRecords: BodyRecord[]; cutoffDate: string; granularity: Granularity }) {
   const filtered = useMemo(() => {
@@ -93,6 +93,7 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
 
   return (
     <div className="space-y-6">
+      <TabHeader title="Body Composition" description="Weight, body fat percentage, BMI, and lean mass trends over time." />
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {latest?.weight && (
@@ -125,7 +126,10 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
       {/* Weight + Lean Mass combined */}
       {compositionData.length > 1 && hasLeanMass && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-3">Weight vs Lean Mass</h3>
+          <div className="flex items-start justify-between mb-3">
+            <h3 className="text-sm font-medium text-zinc-300">Weight vs Lean Mass</h3>
+            <AISummaryButton title="Weight vs Lean Mass" chartData={compositionData} />
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <AreaChart margin={chartMargin} data={compositionData}>
@@ -165,7 +169,10 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
         {/* Weight trend (if no lean mass, show standalone) */}
         {weightData.length > 1 && !hasLeanMass && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">Weight</h3>
+            <div className="flex items-start justify-between mb-3">
+              <h3 className="text-sm font-medium text-zinc-300">Weight</h3>
+              <AISummaryButton title="Weight" chartData={weightData} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={weightData}>
@@ -189,7 +196,10 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
         {/* Body Fat % */}
         {bodyFatData.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">Body Fat %</h3>
+            <div className="flex items-start justify-between mb-3">
+              <h3 className="text-sm font-medium text-zinc-300">Body Fat %</h3>
+              <AISummaryButton title="Body Fat %" chartData={bodyFatData} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={bodyFatData}>
@@ -213,7 +223,10 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
         {/* BMI */}
         {bmiData.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">BMI</h3>
+            <div className="flex items-start justify-between mb-3">
+              <h3 className="text-sm font-medium text-zinc-300">BMI</h3>
+              <AISummaryButton title="BMI" chartData={bmiData} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={bmiData}>
@@ -239,7 +252,10 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
         {/* Lean Mass standalone (if weight not available) */}
         {leanMassData.length > 1 && !hasWeight && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">Lean Body Mass</h3>
+            <div className="flex items-start justify-between mb-3">
+              <h3 className="text-sm font-medium text-zinc-300">Lean Body Mass</h3>
+              <AISummaryButton title="Lean Body Mass" chartData={leanMassData} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={leanMassData}>

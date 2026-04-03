@@ -36,6 +36,143 @@ button, [role="button"], label[class*="cursor"] {
   cursor: pointer;
 }
 
-.bg-zinc-900 {
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Dark theme (default) */
+:root.dark .bg-zinc-900 {
   background-color: #101014 !important;
+}
+
+/* Light theme overrides */
+:root.light {
+  color-scheme: light;
+}
+
+:root.light .bg-zinc-950 {
+  background-color: #ffffff !important;
+}
+
+:root.light .bg-zinc-900 {
+  background-color: #f4f4f5 !important;
+}
+
+:root.light .bg-zinc-900\/95 {
+  background-color: rgba(244, 244, 245, 0.95) !important;
+}
+
+:root.light .bg-zinc-950\/90 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+:root.light .bg-zinc-950\/95 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+:root.light .bg-zinc-800 {
+  background-color: #e4e4e7 !important;
+}
+
+:root.light .bg-zinc-800\/50 {
+  background-color: rgba(228, 228, 231, 0.5) !important;
+}
+
+:root.light .bg-zinc-700 {
+  background-color: #d4d4d8 !important;
+}
+
+:root.light .border-zinc-800 {
+  border-color: #e4e4e7 !important;
+}
+
+:root.light .border-zinc-700 {
+  border-color: #d4d4d8 !important;
+}
+
+:root.light .text-zinc-100 {
+  color: #18181b !important;
+}
+
+:root.light .text-zinc-200 {
+  color: #27272a !important;
+}
+
+:root.light .text-zinc-300 {
+  color: #3f3f46 !important;
+}
+
+:root.light .text-zinc-400 {
+  color: #52525b !important;
+}
+
+:root.light .text-zinc-500 {
+  color: #71717a !important;
+}
+
+:root.light .text-zinc-600 {
+  color: #a1a1aa !important;
+}
+
+:root.light .text-white {
+  color: #18181b !important;
+}
+
+:root.light .hover\:text-zinc-200:hover {
+  color: #27272a !important;
+}
+
+:root.light .hover\:text-zinc-300:hover {
+  color: #3f3f46 !important;
+}
+
+:root.light .hover\:bg-zinc-800\/50:hover {
+  background-color: rgba(228, 228, 231, 0.5) !important;
+}
+
+:root.light .hover\:bg-zinc-700:hover {
+  background-color: #d4d4d8 !important;
+}
+
+:root.light .hover\:bg-zinc-800:hover {
+  background-color: #d4d4d8 !important;
+}
+
+:root.light .hover\:bg-zinc-600:hover {
+  background-color: #a1a1aa !important;
+}
+
+:root.light .hover\:border-zinc-700:hover {
+  border-color: #d4d4d8 !important;
+}
+
+:root.light .hover\:border-zinc-500:hover {
+  border-color: #a1a1aa !important;
+}
+
+:root.light .border-dashed {
+  border-color: #d4d4d8;
+}
+
+/* Light theme: recharts grid and tooltip */
+:root.light .recharts-cartesian-grid line {
+  stroke: #e4e4e7 !important;
+}
+
+:root.light .recharts-text {
+  fill: #71717a !important;
+}
+
+:root.light .recharts-default-tooltip {
+  background-color: #ffffff !important;
+  border-color: #e4e4e7 !important;
+}
+
+/* Light theme: leaflet tiles */
+:root.light .leaflet-container {
+  background: #f4f4f5 !important;
 }

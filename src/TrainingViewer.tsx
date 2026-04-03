@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import type { GpxRoute, GpxPoint, Workout, HRSample } from './types'
 import 'leaflet/dist/leaflet.css'
-import { StatBox, tooltipStyle } from './ui'
+import { StatBox, tooltipStyle, AISummaryButton, TabHeader } from './ui'
 
 interface Props {
   workouts: Workout[]
@@ -167,7 +167,12 @@ function RouteDetail({ route }: { route: GpxRoute }) {
       {/* Elevation profile */}
       {profileData.length > 2 && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <h4 className="text-sm font-medium text-zinc-300 mb-2">Elevation & Speed Profile</h4>
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h4 className="text-sm font-medium text-zinc-300">Elevation & Speed Profile</h4>
+            </div>
+            <AISummaryButton title="Elevation & Speed Profile" description="Elevation and speed along the route" chartData={profileData} />
+          </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <AreaChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={profileData}>
@@ -411,7 +416,9 @@ export default function TrainingViewer({ workouts, gpxFiles, hrTimeline, dob }: 
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-3">
+    <>
+      <TabHeader title="Trainings" description="Detailed workout sessions with GPS routes, heart rate, pace, and elevation data." />
+      <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-3">
       {/* Left panel: workout list */}
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
         {/* Type filter */}
@@ -495,7 +502,12 @@ export default function TrainingViewer({ workouts, gpxFiles, hrTimeline, dob }: 
             {/* Heart rate during session */}
             {workoutHR.length > 2 && (
               <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-                <h4 className="text-sm font-medium text-zinc-300 mb-2">Heart Rate During Session</h4>
+                <div className="flex items-start justify-between mb-1">
+                  <div>
+                    <h4 className="text-sm font-medium text-zinc-300">Heart Rate During Session</h4>
+                  </div>
+                  <AISummaryButton title="Heart Rate During Session" description="Heart rate over the workout duration" chartData={workoutHR} />
+                </div>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                     <AreaChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={workoutHR}>
@@ -546,6 +558,7 @@ export default function TrainingViewer({ workouts, gpxFiles, hrTimeline, dob }: 
         )}
       </div>
     </div>
+    </>
   )
 }
 

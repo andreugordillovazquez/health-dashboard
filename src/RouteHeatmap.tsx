@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { StatBox } from './ui'
+import { StatBox, TabHeader } from './ui'
 
 interface ParsedRoute {
   filename: string
@@ -153,6 +153,7 @@ export default function RouteHeatmap({ gpxFiles }: { gpxFiles: Map<string, File>
 
   return (
     <div className="space-y-4">
+      <TabHeader title="Route Heatmap" description="All your GPS activity overlaid on a map to see your most-traveled routes." />
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

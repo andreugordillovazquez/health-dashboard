@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import type { GpxPoint } from './types'
 import 'leaflet/dist/leaflet.css'
-import { tooltipStyle, chartMargin } from './ui'
+import { tooltipStyle, chartMargin, AISummaryButton, TabHeader } from './ui'
 
 interface ParsedRoute {
   filename: string
@@ -233,6 +233,7 @@ export default function RouteComparison({ gpxFiles }: { gpxFiles: Map<string, Fi
 
   return (
     <div className="space-y-4">
+      <TabHeader title="Route Comparison" description="Compare GPS routes side by side — pace, elevation, and speed profiles." />
       {/* Group selector */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {groups.map((g, i) => (
@@ -300,8 +301,13 @@ export default function RouteComparison({ gpxFiles }: { gpxFiles: Map<string, Fi
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {/* Pace progression */}
             <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-              <h3 className="text-sm font-medium text-zinc-300 mb-1">Pace Over Time</h3>
-              <p className="text-xs text-zinc-500 mb-3">Lower pace = faster. Shows improvement over repeated runs.</p>
+              <div className="flex items-start justify-between mb-1">
+                <div>
+                  <h3 className="text-sm font-medium text-zinc-300">Pace Over Time</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">Lower pace = faster. Shows improvement over repeated runs.</p>
+                </div>
+                <AISummaryButton title="Pace Over Time" description="Lower pace = faster. Shows improvement over repeated runs." chartData={paceData} />
+              </div>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                   <AreaChart margin={chartMargin} data={paceData}>
@@ -331,8 +337,13 @@ export default function RouteComparison({ gpxFiles }: { gpxFiles: Map<string, Fi
 
             {/* Speed progression */}
             <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-              <h3 className="text-sm font-medium text-zinc-300 mb-1">Speed Over Time</h3>
-              <p className="text-xs text-zinc-500 mb-3">Average speed for each run of this route.</p>
+              <div className="flex items-start justify-between mb-1">
+                <div>
+                  <h3 className="text-sm font-medium text-zinc-300">Speed Over Time</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">Average speed for each run of this route.</p>
+                </div>
+                <AISummaryButton title="Speed Over Time" description="Average speed for each run of this route." chartData={paceData} />
+              </div>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                   <BarChart margin={chartMargin} data={paceData}>

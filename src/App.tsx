@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Upload, FolderOpen } from 'lucide-react'
+import { Upload, FolderOpen, Lock, Watch, Apple } from 'lucide-react'
 import type { HealthData, WorkerMessage, DailyMetrics } from './types'
 import Dashboard from './Dashboard'
+import { parseGarminExport } from './garminParser'
 
 const CACHE_DB = 'health-dashboard-cache'
 const CACHE_STORE = 'data'
@@ -88,6 +89,8 @@ async function loadFromCache(): Promise<HealthData | null> {
   } catch { return null }
 }
 
+type SourceMode = 'apple' | 'garmin'
+
 type AppState =
   | { phase: 'upload' }
   | { phase: 'loading-cache' }
@@ -97,6 +100,8 @@ type AppState =
 
 export default function App() {
   const [state, setState] = useState<AppState>({ phase: 'loading-cache' })
+  const [dragging, setDragging] = useState(false)
+  const [sourceMode, setSourceMode] = useState<SourceMode>('apple')
   const gpxFilesRef = useRef<Map<string, File>>(new Map())
   const ecgFilesRef = useRef<Map<string, File>>(new Map())
 
@@ -128,6 +133,7 @@ export default function App() {
             workouts: msg.data.workouts,
             sleepRecords: msg.data.sleepRecords,
             wristTempRecords: msg.data.wristTempRecords,
+            menstrualRecords: msg.data.menstrualRecords,
             caffeineRecords: msg.data.caffeineRecords,
             bodyRecords: msg.data.bodyRecords,
             cardioRecords: msg.data.cardioRecords,
@@ -139,6 +145,7 @@ export default function App() {
             gpxFiles: gpxFilesRef.current,
             ecgFiles: ecgFilesRef.current,
             exportDate: msg.data.exportDate,
+            sourceMode: 'apple',
           }
         setState({ phase: 'ready', data: healthData })
         saveToCache(healthData)
@@ -157,16 +164,43 @@ export default function App() {
     worker.postMessage({ file })
   }, [])
 
+  const handleGarminFiles = useCallback(async (files: File[]) => {
+    const jsonFiles = files.filter(f => f.name.endsWith('.json'))
+    if (jsonFiles.length === 0) {
+      setState({ phase: 'error', message: 'No Garmin JSON data files found. Make sure you selected the Garmin export folder containing DI_CONNECT.' })
+      return
+    }
+    setState({ phase: 'parsing', progress: 0, currentDate: 'Processing Garmin data...' })
+    try {
+      const data = await parseGarminExport(jsonFiles, (msg) => {
+        setState({ phase: 'parsing', progress: 0, currentDate: msg })
+      })
+      setState({ phase: 'ready', data })
+      saveToCache(data)
+    } catch (err) {
+      setState({ phase: 'error', message: `Failed to parse Garmin data: ${err}` })
+    }
+  }, [])
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
+    if (sourceMode === 'garmin') {
+      collectAllFilesFromDrop(e.dataTransfer.items).then(files => handleGarminFiles(files))
+      return
+    }
     gpxFilesRef.current = new Map()
     ecgFilesRef.current = new Map()
     findXmlFile(e.dataTransfer.items, handleFile, gpxFilesRef.current, ecgFilesRef.current)
-  }, [handleFile])
+  }, [handleFile, sourceMode, handleGarminFiles])
 
   const handleFolderSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
+
+    if (sourceMode === 'garmin') {
+      handleGarminFiles(Array.from(files))
+      return
+    }
 
     // Collect GPX and ECG files
     gpxFilesRef.current = new Map()
@@ -195,7 +229,7 @@ export default function App() {
       }
     }
     setState({ phase: 'error', message: 'No Apple Health export XML file found in the selected folder.' })
-  }, [handleFile])
+  }, [handleFile, sourceMode, handleGarminFiles])
 
   if (state.phase === 'ready') {
     return <Dashboard data={state.data} onReset={() => { setState({ phase: 'upload' }); indexedDB.deleteDatabase(CACHE_DB) }} />
@@ -211,63 +245,155 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6">
-      <div className="max-w-lg w-full">
-        <h1 className="text-3xl font-semibold tracking-tight mb-2">Health Dashboard</h1>
-        <p className="text-zinc-400 mb-8 text-sm">
-          Upload your Apple Health export folder to visualize your data.
-        </p>
+      <div className="max-w-md w-full space-y-10">
 
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <h1 className="text-2xl font-semibold tracking-tight">Health Dashboard</h1>
+          <p className="text-zinc-500 text-[13px] leading-relaxed">
+            Visualize your health data.
+          </p>
+          <p className="inline-flex items-center gap-1.5 text-zinc-600 text-[12px]">
+            <Lock size={11} />
+            Everything runs in your browser — nothing is uploaded
+          </p>
+        </div>
+
+        {/* Source mode selector */}
         {state.phase === 'upload' && (
-          <div
-            onDrop={handleDrop}
-            onDragOver={e => e.preventDefault()}
-            className="border border-dashed border-zinc-700 rounded-xl p-12 text-center hover:border-zinc-500 transition-colors cursor-pointer"
-          >
-            <Upload size={40} className="mx-auto mb-4 text-zinc-500" />
-            <p className="text-zinc-300 mb-4">Drop your export folder here</p>
-            <p className="text-zinc-500 text-sm mb-6">or</p>
-            <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-700 text-zinc-100 rounded-lg text-sm font-medium cursor-pointer hover:bg-zinc-600 transition-colors">
-              <FolderOpen size={16} />
-              Select folder
-              <input
-                type="file"
-                // @ts-expect-error webkitdirectory is non-standard
-                webkitdirectory=""
-                directory=""
-                multiple
-                onChange={handleFolderSelect}
-                className="hidden"
-              />
-            </label>
-            <p className="text-zinc-600 text-xs mt-6">
-              Everything is processed locally in your browser. No data leaves your device.
-            </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => setSourceMode('apple')}
+              className={`flex items-center gap-2 px-5 py-3 rounded-xl text-[13px] font-medium transition-all border ${
+                sourceMode === 'apple'
+                  ? 'bg-zinc-100 text-zinc-900 border-zinc-300 shadow-sm'
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-300'
+              }`}
+            >
+              <Apple size={16} />
+              Apple Health
+            </button>
+            <button
+              onClick={() => setSourceMode('garmin')}
+              className={`flex items-center gap-2 px-5 py-3 rounded-xl text-[13px] font-medium transition-all border ${
+                sourceMode === 'garmin'
+                  ? 'bg-zinc-100 text-zinc-900 border-zinc-300 shadow-sm'
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-300'
+              }`}
+            >
+              <Watch size={16} />
+              Garmin
+            </button>
           </div>
         )}
 
+        {state.phase === 'upload' && (
+          <>
+            {/* Drop zone */}
+            <div
+              onDrop={e => { setDragging(false); handleDrop(e) }}
+              onDragOver={e => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              className={`rounded-2xl bg-zinc-900 border border-dashed p-10 text-center space-y-5 transition-colors ${
+                dragging ? 'border-zinc-500 bg-zinc-900/80' : 'border-zinc-800 hover:border-zinc-700'
+              }`}
+            >
+              <Upload size={28} className="mx-auto text-zinc-600" />
+              <div>
+                <p className="text-[15px] text-zinc-200 mb-1">Drop your export folder here</p>
+                <p className="text-zinc-600 text-xs">or select it manually</p>
+              </div>
+              <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-zinc-100 text-zinc-900 rounded-xl text-[13px] font-medium cursor-pointer hover:bg-white transition-colors shadow-sm">
+                <FolderOpen size={14} />
+                Select folder
+                <input
+                  type="file"
+                  // @ts-expect-error webkitdirectory is non-standard
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                  onChange={handleFolderSelect}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {/* Instructions */}
+            <details className="group text-[13px]">
+              <summary className="text-zinc-500 cursor-pointer select-none hover:text-zinc-400 transition-colors list-none flex items-center justify-center gap-1.5">
+                <svg width="12" height="12" viewBox="0 0 12 12" className="transition-transform group-open:rotate-90" fill="none"><path d="M4.5 2.5L7.5 6L4.5 9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                {sourceMode === 'apple' ? 'How to export from Apple Health' : 'How to export from Garmin Connect'}
+              </summary>
+              {sourceMode === 'apple' ? (
+                <ol className="mt-4 space-y-3 text-zinc-500">
+                  <li className="flex gap-3">
+                    <span className="text-zinc-600 tabular-nums shrink-0">1.</span>
+                    <span>Open the <span className="text-zinc-300">Health</span> app and tap your profile picture (top right)</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-zinc-600 tabular-nums shrink-0">2.</span>
+                    <span>Scroll to the very bottom</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-zinc-600 tabular-nums shrink-0">3.</span>
+                    <span>Tap <span className="text-zinc-300">"Export All Health Data"</span></span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-zinc-600 tabular-nums shrink-0">4.</span>
+                    <span>Save the .zip to iCloud or Files</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-zinc-600 tabular-nums shrink-0">5.</span>
+                    <span>Unzip the file and upload the folder here</span>
+                  </li>
+                </ol>
+              ) : (
+                <ol className="mt-4 space-y-3 text-zinc-500">
+                  <li className="flex gap-3">
+                    <span className="text-zinc-600 tabular-nums shrink-0">1.</span>
+                    <span>Go to <span className="text-zinc-300">garmin.com/account/datamanagement</span></span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-zinc-600 tabular-nums shrink-0">2.</span>
+                    <span>Click <span className="text-zinc-300">"Request Data Export"</span></span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-zinc-600 tabular-nums shrink-0">3.</span>
+                    <span>Wait for the email with the download link</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-zinc-600 tabular-nums shrink-0">4.</span>
+                    <span>Unzip the file and upload the folder here</span>
+                  </li>
+                </ol>
+              )}
+            </details>
+          </>
+        )}
+
         {state.phase === 'parsing' && (
-          <div className="border border-zinc-800 rounded-xl p-12 text-center">
-            <div className="animate-pulse text-xl mb-4">Parsing...</div>
-            <p className="text-zinc-400 text-sm">
-              {state.progress > 0
-                ? `${(state.progress / 1000000).toFixed(1)}M records processed`
-                : 'Starting...'}
-            </p>
-            {state.currentDate && (
-              <p className="text-zinc-500 text-xs mt-2">Processing {state.currentDate}</p>
-            )}
-            <div className="mt-4 h-1 bg-zinc-800 rounded-full overflow-hidden">
-              <div className="h-full bg-zinc-400 rounded-full animate-pulse" style={{ width: '60%' }} />
+          <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-10 text-center space-y-3">
+            <div className="w-5 h-5 border-2 border-zinc-700 border-t-zinc-300 rounded-full animate-spin mx-auto" />
+            <div>
+              <p className="text-[15px] text-zinc-200">Parsing...</p>
+              <p className="text-zinc-500 text-xs mt-1">
+                {state.progress > 0
+                  ? `${(state.progress / 1000000).toFixed(1)}M records processed`
+                  : state.currentDate || 'Starting...'}
+              </p>
+              {state.currentDate && (
+                <p className="text-zinc-600 text-xs mt-0.5">{state.currentDate}</p>
+              )}
             </div>
           </div>
         )}
 
         {state.phase === 'error' && (
-          <div className="border border-red-900/50 rounded-xl p-8 text-center">
-            <p className="text-red-400 mb-4">{state.message}</p>
+          <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-8 text-center space-y-4">
+            <p className="text-red-400 text-sm">{state.message}</p>
             <button
               onClick={() => setState({ phase: 'upload' })}
-              className="px-4 py-2 bg-zinc-800 rounded-lg text-sm hover:bg-zinc-700 transition-colors"
+              className="px-4 py-2 bg-zinc-800 rounded-lg text-xs hover:bg-zinc-700 transition-colors"
             >
               Try again
             </button>
@@ -286,6 +412,29 @@ async function readAllEntries(dirReader: FileSystemDirectoryReader): Promise<Fil
     all.push(...batch)
   } while (batch.length > 0)
   return all
+}
+
+async function collectAllFilesFromDrop(items: DataTransferItemList): Promise<File[]> {
+  const files: File[] = []
+
+  async function processEntry(entry: FileSystemEntry) {
+    if (entry.isFile) {
+      const file = await new Promise<File>(resolve => (entry as FileSystemFileEntry).file(resolve))
+      files.push(file)
+    } else if (entry.isDirectory) {
+      const dirReader = (entry as FileSystemDirectoryEntry).createReader()
+      const entries = await readAllEntries(dirReader)
+      for (const e of entries) {
+        await processEntry(e)
+      }
+    }
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const entry = items[i].webkitGetAsEntry?.()
+    if (entry) await processEntry(entry)
+  }
+  return files
 }
 
 async function findXmlFile(items: DataTransferItemList, onFile: (f: File) => void, gpxFiles: Map<string, File>, ecgFiles: Map<string, File>) {

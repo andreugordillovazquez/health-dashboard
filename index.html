@@ -7,6 +7,10 @@
     <title>Health Dashboard</title>
   </head>
   <body>
+    <script>
+      (function(){var t=localStorage.getItem('health-dashboard-theme');
+      document.documentElement.className=t==='light'?'light':'dark'})()
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

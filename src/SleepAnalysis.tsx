@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import type { SleepRecord, DailySleep, WristTempRecord, DailyBreathing } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, tooltipStyle, chartMargin, COLORS, shortDate, avg, Legend } from './ui'
+import { StatBox, tooltipStyle, chartMargin, COLORS, shortDate, avg, Legend, AISummaryButton, TabHeader } from './ui'
 
 const SLEEP_COLORS = { core: '#6366f1', deep: COLORS.purple, rem: COLORS.cyan, awake: COLORS.orange, temp: COLORS.red }
 
@@ -317,6 +317,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
 
   return (
     <div className="space-y-6">
+      <TabHeader title="Sleep" description="Sleep duration, stages, schedule patterns, and breathing metrics during sleep." />
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         <StatBox label="Avg Sleep" value={`${avgTotal.toFixed(1)}h`} sub="Last 30 nights" />
@@ -350,7 +351,12 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
       {/* Sleep stages stacked bar (weekly) */}
       {weeklyData.length > 0 && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <h3 className="text-sm font-medium text-zinc-300 mb-3">Sleep Stages (weekly avg, hours)</h3>
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Sleep Stages (weekly avg, hours)</h3>
+            </div>
+            <AISummaryButton title="Sleep Stages" description="Weekly average sleep stages in hours" chartData={weeklyData} />
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <BarChart margin={chartMargin} data={weeklyData}>
@@ -382,8 +388,13 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
         {/* Bedtime & wake schedule trend */}
         {weeklySchedule.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">Bedtime & Wake Schedule (weekly avg)</h3>
-            <p className="text-xs text-zinc-500 mb-3">Consistent schedule = better sleep quality</p>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Bedtime & Wake Schedule (weekly avg)</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Consistent schedule = better sleep quality</p>
+              </div>
+              <AISummaryButton title="Bedtime & Wake Schedule" description="Consistent schedule = better sleep quality" chartData={weeklySchedule} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={weeklySchedule}>
@@ -423,7 +434,12 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
         {/* Total sleep duration trend */}
         {weeklyData.length > 0 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">Total Sleep Trend (weekly avg)</h3>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Total Sleep Trend (weekly avg)</h3>
+              </div>
+              <AISummaryButton title="Total Sleep Trend" description="Weekly average total sleep duration" chartData={weeklyData.map(w => ({ week: w.week, total: Math.round((w.core + w.deep + w.rem) * 10) / 10 }))} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={weeklyData.map(w => ({ week: w.week, total: Math.round((w.core + w.deep + w.rem) * 10) / 10 }))}>
@@ -447,7 +463,12 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
         {/* Bedtime consistency scatter */}
         {dailySleep.length > 7 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">Bedtime Scatter</h3>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Bedtime Scatter</h3>
+              </div>
+              <AISummaryButton title="Bedtime Scatter" description="Daily bedtime consistency scatter plot" chartData={dailySleep.filter(d => d.bedtime).map(d => { let bedMins = timeToMinutes(d.bedtime); if (bedMins < 720) bedMins += 1440; return { date: d.date, bedtime: bedMins, total: d.total / 60 } })} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <ScatterChart margin={chartMargin}>
@@ -492,10 +513,15 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
         {/* Wrist temperature deviation */}
         {tempDeviationData.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">Wrist Temperature During Sleep</h3>
-            <p className="text-xs text-zinc-500 mb-3">
-              Deviation from baseline ({avgTemp?.toFixed(1)}°C ±{tempStd?.toFixed(2)}°C). Spikes may indicate illness or cycle changes.
-            </p>
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Wrist Temperature During Sleep</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Deviation from baseline ({avgTemp?.toFixed(1)}°C ±{tempStd?.toFixed(2)}°C). Spikes may indicate illness or cycle changes.
+                </p>
+              </div>
+              <AISummaryButton title="Wrist Temperature During Sleep" description="Deviation from baseline wrist temperature. Spikes may indicate illness or cycle changes." chartData={tempDeviationData} />
+            </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <AreaChart margin={chartMargin} data={tempDeviationData}>
@@ -532,11 +558,16 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
           {/* Disturbances */}
           {weeklyDisturbances.length > 1 && (
             <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-              <h3 className="text-sm font-medium text-zinc-300 mb-1">Breathing Disturbances (weekly avg)</h3>
-              <p className="text-xs text-zinc-500 mb-3">
-                Events/hr during sleep. Under 5 is normal.
-                {avgDist !== null && <> Current avg: <span className={avgDist < 5 ? 'text-green-400' : avgDist < 15 ? 'text-orange-400' : 'text-red-400'}>{avgDist.toFixed(1)}/hr</span></>}
-              </p>
+              <div className="flex items-start justify-between mb-1">
+                <div>
+                  <h3 className="text-sm font-medium text-zinc-300">Breathing Disturbances (weekly avg)</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Events/hr during sleep. Under 5 is normal.
+                    {avgDist !== null && <> Current avg: <span className={avgDist < 5 ? 'text-green-400' : avgDist < 15 ? 'text-orange-400' : 'text-red-400'}>{avgDist.toFixed(1)}/hr</span></>}
+                  </p>
+                </div>
+                <AISummaryButton title="Breathing Disturbances" description="Events per hour during sleep. Under 5 is normal." chartData={weeklyDisturbances} />
+              </div>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                   <AreaChart margin={chartMargin} data={weeklyDisturbances}>
@@ -563,8 +594,13 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
             {/* Respiratory rate */}
             {weeklyRespRate.length > 1 && (
               <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-                <h3 className="text-sm font-medium text-zinc-300 mb-1">Respiratory Rate (weekly avg)</h3>
-                <p className="text-xs text-zinc-500 mb-3">Normal: 12-20 breaths/min at rest</p>
+                <div className="flex items-start justify-between mb-1">
+                  <div>
+                    <h3 className="text-sm font-medium text-zinc-300">Respiratory Rate (weekly avg)</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Normal: 12-20 breaths/min at rest</p>
+                  </div>
+                  <AISummaryButton title="Respiratory Rate" description="Normal: 12-20 breaths/min at rest" chartData={weeklyRespRate} />
+                </div>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                     <AreaChart margin={chartMargin} data={weeklyRespRate}>
@@ -590,8 +626,13 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
             {/* SpO2 */}
             {weeklySpo2.length > 1 && (
               <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-                <h3 className="text-sm font-medium text-zinc-300 mb-1">Blood Oxygen (weekly avg)</h3>
-                <p className="text-xs text-zinc-500 mb-3">Normal: 95-100%</p>
+                <div className="flex items-start justify-between mb-1">
+                  <div>
+                    <h3 className="text-sm font-medium text-zinc-300">Blood Oxygen (weekly avg)</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Normal: 95-100%</p>
+                  </div>
+                  <AISummaryButton title="Blood Oxygen" description="Normal: 95-100%" chartData={weeklySpo2} />
+                </div>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                     <AreaChart margin={chartMargin} data={weeklySpo2}>

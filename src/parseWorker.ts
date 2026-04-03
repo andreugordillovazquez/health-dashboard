@@ -1,4 +1,4 @@
-import type { DailyMetrics, Workout, SleepRecord, CaffeineRecord, BodyRecord, CardioRecord, DailyHR, HRSample, DailyAudio, DailyBreathing, WristTempRecord, ParseProgress, ParseComplete, ParseError } from './types'
+import type { DailyMetrics, Workout, SleepRecord, CaffeineRecord, BodyRecord, CardioRecord, DailyHR, HRSample, DailyAudio, DailyBreathing, WristTempRecord, MenstrualRecord, ParseProgress, ParseComplete, ParseError } from './types'
 
 interface Accumulator {
   // These track per-source to deduplicate iPhone+Watch overlap
@@ -57,6 +57,12 @@ const METRIC_TYPES = new Set([
   'HKQuantityTypeIdentifierRespiratoryRate',
   'HKQuantityTypeIdentifierOxygenSaturation',
   'HKQuantityTypeIdentifierTimeInDaylight',
+  'HKCategoryTypeIdentifierMenstrualFlow',
+  'HKCategoryTypeIdentifierOvulationTestResult',
+  'HKCategoryTypeIdentifierCervicalMucusQuality',
+  'HKQuantityTypeIdentifierBasalBodyTemperature',
+  'HKCategoryTypeIdentifierSexualActivity',
+  'HKCategoryTypeIdentifierIntermenstrualBleeding',
 ])
 
 const STAGE_MAP: Record<string, SleepRecord['stage']> = {
@@ -95,6 +101,7 @@ async function parseFile(file: File) {
   const audioAcc = new Map<string, { hpVals: number[]; hpMins: number; envVals: number[]; envMins: number; events: number }>()
   const breathingAcc = new Map<string, { disturbances: number[]; respRate: number[]; spo2: number[] }>()
   const daylightAcc = new Map<string, number>()
+  const menstrualAcc = new Map<string, { flow: MenstrualRecord['flow']; cervicalMucus: MenstrualRecord['cervicalMucus']; ovulationTest: MenstrualRecord['ovulationTest']; basalBodyTemp: number | null; sexualActivity: boolean; intermenstrualBleeding: boolean }>()
   let profile = { dob: '', sex: '', bloodType: '' }
   let exportDate = ''
   let recordCount = 0
@@ -137,6 +144,56 @@ async function parseFile(file: File) {
       if (!startDate) continue
       const day = startDate.substring(0, 10)
       const value = parseFloat(extractAttr(attrs, 'value') || '0')
+
+      // Menstrual cycle records
+      if (type === 'HKCategoryTypeIdentifierMenstrualFlow' ||
+          type === 'HKCategoryTypeIdentifierOvulationTestResult' ||
+          type === 'HKCategoryTypeIdentifierCervicalMucusQuality' ||
+          type === 'HKQuantityTypeIdentifierBasalBodyTemperature' ||
+          type === 'HKCategoryTypeIdentifierSexualActivity' ||
+          type === 'HKCategoryTypeIdentifierIntermenstrualBleeding') {
+        if (!menstrualAcc.has(day)) menstrualAcc.set(day, { flow: null, cervicalMucus: null, ovulationTest: null, basalBodyTemp: null, sexualActivity: false, intermenstrualBleeding: false })
+        const m = menstrualAcc.get(day)!
+        if (type === 'HKCategoryTypeIdentifierMenstrualFlow') {
+          const val = extractAttr(attrs, 'value')
+          const flowMap: Record<string, MenstrualRecord['flow']> = {
+            HKCategoryValueMenstrualFlowNone: 'none',
+            HKCategoryValueMenstrualFlowLight: 'light',
+            HKCategoryValueMenstrualFlowMedium: 'medium',
+            HKCategoryValueMenstrualFlowHeavy: 'heavy',
+            HKCategoryValueMenstrualFlowUnspecified: 'unspecified',
+            HKCategoryValueVaginalBleedingNone: 'none',
+            HKCategoryValueVaginalBleedingLight: 'light',
+            HKCategoryValueVaginalBleedingMedium: 'medium',
+            HKCategoryValueVaginalBleedingHeavy: 'heavy',
+            HKCategoryValueVaginalBleedingUnspecified: 'unspecified',
+          }
+          m.flow = flowMap[val] || 'unspecified'
+        } else if (type === 'HKCategoryTypeIdentifierCervicalMucusQuality') {
+          const val = extractAttr(attrs, 'value')
+          const mucusMap: Record<string, MenstrualRecord['cervicalMucus']> = {
+            HKCategoryValueCervicalMucusQualityDry: 'dry',
+            HKCategoryValueCervicalMucusQualitySticky: 'sticky',
+            HKCategoryValueCervicalMucusQualityCreamy: 'creamy',
+            HKCategoryValueCervicalMucusQualityWatery: 'watery',
+            HKCategoryValueCervicalMucusQualityEggWhite: 'eggWhite',
+          }
+          m.cervicalMucus = mucusMap[val] || null
+        } else if (type === 'HKCategoryTypeIdentifierOvulationTestResult') {
+          const val = extractAttr(attrs, 'value')
+          if (val.includes('Positive') || val.includes('LuteinizingSurge')) m.ovulationTest = 'positive'
+          else if (val.includes('Indeterminate')) m.ovulationTest = 'indeterminate'
+          else m.ovulationTest = 'negative'
+        } else if (type === 'HKQuantityTypeIdentifierBasalBodyTemperature') {
+          m.basalBodyTemp = value
+        } else if (type === 'HKCategoryTypeIdentifierSexualActivity') {
+          m.sexualActivity = true
+        } else if (type === 'HKCategoryTypeIdentifierIntermenstrualBleeding') {
+          m.intermenstrualBleeding = true
+        }
+        recordCount++
+        continue
+      }
 
       // Daylight
       if (type === 'HKQuantityTypeIdentifierTimeInDaylight') {
@@ -494,6 +551,21 @@ async function parseFile(file: File) {
   }
   dailyBreathing.sort((a, b) => a.date.localeCompare(b.date))
 
+  // Build menstrual records
+  const menstrualRecords: MenstrualRecord[] = []
+  for (const [day, m] of menstrualAcc) {
+    menstrualRecords.push({
+      date: day,
+      flow: m.flow,
+      cervicalMucus: m.cervicalMucus,
+      ovulationTest: m.ovulationTest,
+      basalBodyTemp: m.basalBodyTemp,
+      sexualActivity: m.sexualActivity,
+      intermenstrualBleeding: m.intermenstrualBleeding,
+    })
+  }
+  menstrualRecords.sort((a, b) => a.date.localeCompare(b.date))
+
   self.postMessage({
     type: 'complete',
     data: {
@@ -502,6 +574,7 @@ async function parseFile(file: File) {
       workouts,
       sleepRecords,
       wristTempRecords,
+      menstrualRecords,
       caffeineRecords,
       bodyRecords,
       cardioRecords,

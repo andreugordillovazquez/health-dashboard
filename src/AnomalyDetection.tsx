@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { HealthData, DailyMetrics } from './types'
-import './ui'
+import { TabHeader } from './ui'
 import {
   Heart, Moon, Footprints, Scale, Activity, Wind, ThermometerSun,
 } from 'lucide-react'
@@ -373,6 +373,7 @@ export default function AnomalyDetection({ data, metrics }: Props) {
 
   return (
     <div className="space-y-6">
+      <TabHeader title="Anomalies" description="Unusual readings and outliers detected across your health data." />
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { TabHeader } from './ui'
 import type { DailyMetrics, Workout, GpxPoint } from './types'
 
 interface ParsedRoute {
@@ -373,7 +374,9 @@ export default function PersonalRecords({ metrics, workouts, gpxFiles }: Props) 
   if (loading) return <div className="text-zinc-400 animate-pulse text-center py-12">Computing personal records...</div>
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+    <>
+      <TabHeader title="Personal Records" description="Your all-time bests across workouts, distances, and health metrics." />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
       {records.map(pr => (
         <div key={pr.label} className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 flex gap-3">
           <div className="text-2xl">{pr.icon}</div>
@@ -386,5 +389,6 @@ export default function PersonalRecords({ metrics, workouts, gpxFiles }: Props) 
         </div>
       ))}
     </div>
+    </>
   )
 }
