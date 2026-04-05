@@ -8,11 +8,11 @@ import {
   LayoutDashboard, Trophy, CalendarDays, CalendarRange, Heart, Activity,
   Scale, Moon, Sun, Headphones, GitCompareArrows, Dumbbell, Route, Map, Upload,
   Gauge, AlertTriangle, Sparkles, Droplets, PanelLeftClose, PanelLeftOpen,
-  SunMedium, MoonStar,
+  SunMedium, MoonStar, Footprints, Zap, TrendingUp,
 } from 'lucide-react'
 import { computeTrends, computeExtraTrends, groupedAverage, workoutSummary, monthlyWorkouts } from './analysis'
 import type { ExtraTrendInput } from './analysis'
-import { COLORS, tooltipStyle, chartMargin, StatBox, ChartCard, SectionHeader, shortDateCompact, shortMonth, fmt, humanizeWorkoutType } from './ui'
+import { COLORS, chartMargin, StatBox, ChartCard, SectionHeader, TabHeader, shortDateCompact, shortMonth, fmt, humanizeWorkoutType, useChartTheme } from './ui'
 
 const TrainingViewer = lazy(() => import('./TrainingViewer'))
 const SleepAnalysis = lazy(() => import('./SleepAnalysis'))
@@ -22,7 +22,6 @@ const BodyComposition = lazy(() => import('./BodyComposition'))
 const Cardio = lazy(() => import('./Cardio'))
 const AudioExposure = lazy(() => import('./AudioExposure'))
 const Daylight = lazy(() => import('./Daylight'))
-const ECGViewer = lazy(() => import('./ECGViewer'))
 const RouteComparison = lazy(() => import('./RouteComparison'))
 const PersonalRecords = lazy(() => import('./PersonalRecords'))
 const YearInReview = lazy(() => import('./YearInReview'))
@@ -32,10 +31,13 @@ const AnomalyDetection = lazy(() => import('./AnomalyDetection'))
 const AIInsights = lazy(() => import('./AIInsights'))
 const MenstrualCycle = lazy(() => import('./MenstrualCycle'))
 const GarminTraining = lazy(() => import('./GarminTraining'))
+const Mobility = lazy(() => import('./Mobility'))
+const RunningDynamics = lazy(() => import('./RunningDynamics'))
+const TrainingLoad = lazy(() => import('./TrainingLoad'))
 
-type TimeRange = '3m' | '6m' | '1y' | 'all'
+type TimeRange = '1w' | '3m' | '6m' | '1y' | 'all'
 type Granularity = 'daily' | 'weekly' | 'monthly'
-type Tab = 'overview' | 'score' | 'anomalies' | 'insights' | 'records' | 'yearly' | 'calendar' | 'cardio' | 'ecg' | 'body' | 'sleep' | 'menstrual' | 'daylight' | 'audio' | 'correlations' | 'trainings' | 'compare' | 'heatmap' | 'garmin-training'
+type Tab = 'overview' | 'score' | 'anomalies' | 'insights' | 'records' | 'yearly' | 'calendar' | 'cardio' | 'body' | 'sleep' | 'menstrual' | 'daylight' | 'audio' | 'correlations' | 'trainings' | 'compare' | 'heatmap' | 'garmin-training' | 'mobility' | 'running' | 'load'
 
 const Loading = <div className="text-zinc-400 dark:text-zinc-400 animate-pulse py-20 text-center">Loading...</div>
 
@@ -47,8 +49,8 @@ const GROUP_LABELS: Record<number, string> = {
   5: 'Routes',
 }
 
-const VALID_TABS = new Set<Tab>(['overview', 'score', 'anomalies', 'insights', 'records', 'yearly', 'calendar', 'cardio', 'ecg', 'body', 'sleep', 'menstrual', 'daylight', 'audio', 'correlations', 'trainings', 'compare', 'heatmap', 'garmin-training'])
-const VALID_RANGES = new Set<TimeRange>(['3m', '6m', '1y', 'all'])
+const VALID_TABS = new Set<Tab>(['overview', 'score', 'anomalies', 'insights', 'records', 'yearly', 'calendar', 'cardio', 'body', 'sleep', 'menstrual', 'daylight', 'audio', 'correlations', 'trainings', 'compare', 'heatmap', 'garmin-training', 'mobility', 'running', 'load'])
+const VALID_RANGES = new Set<TimeRange>(['1w', '3m', '6m', '1y', 'all'])
 const VALID_GRANULARITIES = new Set<Granularity>(['daily', 'weekly', 'monthly'])
 
 function parseHash(): { tab?: Tab; range?: TimeRange; granularity?: Granularity } {
@@ -91,6 +93,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
   const [granularity, setGranularity] = useState<Granularity>(initial.granularity ?? 'weekly')
   const [tab, setTab] = useState<Tab>(initial.tab ?? 'overview')
   const [theme, setTheme] = useTheme()
+  const ct = useChartTheme()
 
   // Sync state → URL hash
   useEffect(() => {
@@ -118,10 +121,11 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
   const hasSleep = data.sleepRecords.length > 0
   const hasBody = data.bodyRecords.length > 0
   const hasCardio = data.cardioRecords.length > 0
-  const hasEcg = data.ecgFiles.size > 0
   const hasAudio = data.dailyAudio.length > 0
   const hasDaylight = data.dailyDaylight.length > 0
   const hasMenstrual = data.menstrualRecords.length > 0
+  const hasMobility = data.dailyMobility.length > 0
+  const hasRunning = data.runningDynamics.length > 0
   const hasGarmin = data.sourceMode === 'garmin' && !!data.garminMetrics
 
   const allMetrics = useMemo(() => {
@@ -131,6 +135,10 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
   const cutoffDate = useMemo(() => {
     if (range === 'all') return ''
     const now = new Date()
+    if (range === '1w') {
+      const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7)
+      return cutoff.toISOString().substring(0, 10)
+    }
     const months = range === '3m' ? 3 : range === '6m' ? 6 : 12
     const cutoff = new Date(now.getFullYear(), now.getMonth() - months, now.getDate())
     return cutoff.toISOString().substring(0, 10)
@@ -205,6 +213,51 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
   const latestVO2 = findLatest(allMetrics, 'vo2max')
   const totalWorkouts = data.workouts.length
 
+  // Highlights for overview
+  const highlights = useMemo(() => {
+    const items: { icon: string; text: string; color: string }[] = []
+
+    // Best trend
+    const bestTrend = trends.find(t => t.positive && t.changePercent > 0)
+    if (bestTrend) items.push({ icon: '📈', text: `${bestTrend.metric} improved ${bestTrend.changePercent}% over the last 30 days`, color: 'text-green-400' })
+
+    // Worst trend
+    const worstTrend = [...trends].reverse().find(t => !t.positive && t.changePercent > 5)
+    if (worstTrend) items.push({ icon: '📉', text: `${worstTrend.metric} declined ${worstTrend.changePercent}% — worth keeping an eye on`, color: 'text-red-400' })
+
+    // Step streak
+    const stepStreak = (() => {
+      let streak = 0
+      for (let i = allMetrics.length - 1; i >= 0; i--) {
+        if (allMetrics[i].steps >= 10000) streak++
+        else break
+      }
+      return streak
+    })()
+    if (stepStreak >= 3) items.push({ icon: '🔥', text: `${stepStreak}-day streak of 10,000+ steps`, color: 'text-orange-400' })
+
+    // Sleep consistency
+    if (avgSleep !== null && avgSleep >= 7.5) items.push({ icon: '😴', text: `Averaging ${avgSleep.toFixed(1)}h sleep — meeting the recommended 7-9h target`, color: 'text-cyan-400' })
+    else if (avgSleep !== null && avgSleep < 6.5) items.push({ icon: '⚠️', text: `Only ${avgSleep.toFixed(1)}h avg sleep — below the recommended minimum of 7h`, color: 'text-red-400' })
+
+    // Best workout week
+    if (workoutsByMonth.length > 0) {
+      const lastMonth = workoutsByMonth[workoutsByMonth.length - 1]
+      const prevMonth = workoutsByMonth.length > 1 ? workoutsByMonth[workoutsByMonth.length - 2] : null
+      if (prevMonth && lastMonth.count > prevMonth.count) {
+        items.push({ icon: '💪', text: `${lastMonth.count} workouts this month — up from ${prevMonth.count} last month`, color: 'text-blue-400' })
+      }
+    }
+
+    // Resting HR milestone
+    if (avgHR !== null && avgHR <= 60) items.push({ icon: '❤️', text: `Resting HR at ${Math.round(avgHR)} bpm — athlete-level cardiovascular fitness`, color: 'text-green-400' })
+
+    // VO2 Max
+    if (latestVO2 !== null && latestVO2 >= 45) items.push({ icon: '🫁', text: `VO2 Max at ${latestVO2.toFixed(1)} — above average cardiorespiratory fitness`, color: 'text-green-400' })
+
+    return items.slice(0, 5) // Max 5 highlights
+  }, [trends, allMetrics, avgSleep, workoutsByMonth, avgHR, latestVO2])
+
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const tabs: { key: Tab; label: string; icon: ReactNode; show: boolean; group: number }[] = [
@@ -216,12 +269,14 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
     { key: 'yearly', label: 'Yearly', icon: <CalendarDays size={16} />, show: true, group: 2 },
     { key: 'calendar', label: 'Calendar', icon: <CalendarRange size={16} />, show: true, group: 2 },
     { key: 'cardio', label: 'Cardio', icon: <Heart size={16} />, show: hasCardio, group: 3 },
-    { key: 'ecg', label: 'ECG', icon: <Activity size={16} />, show: hasEcg, group: 3 },
     { key: 'body', label: 'Body', icon: <Scale size={16} />, show: hasBody, group: 3 },
     { key: 'sleep', label: 'Sleep', icon: <Moon size={16} />, show: hasSleep, group: 3 },
     { key: 'menstrual', label: 'Cycle', icon: <Droplets size={16} />, show: hasMenstrual || data.profile.sex === 'HKBiologicalSexFemale', group: 3 },
     { key: 'daylight', label: 'Daylight', icon: <Sun size={16} />, show: hasDaylight, group: 3 },
     { key: 'audio', label: 'Audio', icon: <Headphones size={16} />, show: hasAudio, group: 3 },
+    { key: 'mobility', label: 'Mobility', icon: <Footprints size={16} />, show: hasMobility, group: 3 },
+    { key: 'running', label: 'Running', icon: <Zap size={16} />, show: hasRunning, group: 3 },
+    { key: 'load', label: 'Training Load', icon: <TrendingUp size={16} />, show: data.workouts.length >= 7, group: 4 },
     { key: 'correlations', label: 'Correlations', icon: <GitCompareArrows size={16} />, show: true, group: 4 },
     { key: 'trainings', label: 'Trainings', icon: <Dumbbell size={16} />, show: hasGpx, group: 5 },
     { key: 'compare', label: 'Compare', icon: <Route size={16} />, show: hasGpx, group: 5 },
@@ -230,7 +285,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
   ]
   const visibleTabs = tabs.filter(t => t.show)
 
-  const showControls = tab === 'overview' || tab === 'score' || tab === 'cardio' || tab === 'body' || tab === 'sleep' || tab === 'menstrual' || tab === 'daylight' || tab === 'audio' || tab === 'calendar' || tab === 'garmin-training'
+  const showControls = tab === 'overview' || tab === 'score' || tab === 'cardio' || tab === 'body' || tab === 'sleep' || tab === 'menstrual' || tab === 'daylight' || tab === 'audio' || tab === 'calendar' || tab === 'garmin-training' || tab === 'mobility' || tab === 'running' || tab === 'load'
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -360,12 +415,13 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
               ))}
             </div>
             <div className="flex bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
-              {(['3m', '6m', '1y', 'all'] as TimeRange[]).map(r => (
+              {(['1w', '3m', '6m', '1y', 'all'] as TimeRange[]).map(r => (
                 <button
                   key={r}
                   onClick={() => {
                     setRange(r)
-                    if (r === '3m') setGranularity('daily')
+                    if (r === '1w') setGranularity('daily')
+                    else if (r === '3m') setGranularity('daily')
                     else if (r === '6m') setGranularity('weekly')
                     else if (r === '1y') setGranularity('weekly')
                     else setGranularity('weekly')
@@ -424,11 +480,6 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           </Suspense>
         )}
 
-        {tab === 'ecg' && hasEcg && (
-          <Suspense fallback={Loading}>
-            <ECGViewer ecgFiles={data.ecgFiles} />
-          </Suspense>
-        )}
 
         {tab === 'body' && hasBody && (
           <Suspense fallback={Loading}>
@@ -457,6 +508,24 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
         {tab === 'audio' && hasAudio && (
           <Suspense fallback={Loading}>
             <AudioExposure dailyAudio={data.dailyAudio} cutoffDate={cutoffDate} granularity={granularity} />
+          </Suspense>
+        )}
+
+        {tab === 'mobility' && hasMobility && (
+          <Suspense fallback={Loading}>
+            <Mobility dailyMobility={data.dailyMobility} cutoffDate={cutoffDate} granularity={granularity} />
+          </Suspense>
+        )}
+
+        {tab === 'running' && hasRunning && (
+          <Suspense fallback={Loading}>
+            <RunningDynamics runningDynamics={data.runningDynamics} cutoffDate={cutoffDate} granularity={granularity} />
+          </Suspense>
+        )}
+
+        {tab === 'load' && data.workouts.length >= 7 && (
+          <Suspense fallback={Loading}>
+            <TrainingLoad workouts={data.workouts} cutoffDate={cutoffDate} />
           </Suspense>
         )}
 
@@ -492,6 +561,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
 
         {tab === 'overview' && <>
         {/* Key Metrics */}
+        <TabHeader title="Overview" description="Your health at a glance — key metrics, recent highlights, and trends from the last 30 days." />
         <SectionHeader>At a Glance</SectionHeader>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-3">
           <StatBox label="Steps" value={fmt(avgSteps)} unit="/day" trend={trendFor('Steps')} sub="30d avg" />
@@ -503,6 +573,21 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           <StatBox label="Distance" value={fmt(avgMetric(recent30, 'distance'), 1)} unit="km/day" trend={trendFor('Distance')} sub="30d avg" />
           <StatBox label="Workouts" value={`${totalWorkouts}`} unit="total" sub={`${workoutsByMonth.length > 0 ? workoutsByMonth[workoutsByMonth.length - 1]?.count || 0 : 0} this month`} />
         </div>
+
+        {/* Highlights */}
+        {highlights.length > 0 && (
+          <>
+            <SectionHeader>Highlights</SectionHeader>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {highlights.map((h, i) => (
+                <div key={i} className="flex items-start gap-3 bg-zinc-900 rounded-xl border border-zinc-800 px-4 py-3">
+                  <span className="text-lg shrink-0 mt-0.5">{h.icon}</span>
+                  <p className={`text-xs leading-relaxed ${h.color}`}>{h.text}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Trends grid */}
         {trends.length > 0 && (
@@ -533,10 +618,10 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                       <stop offset="95%" stopColor={COLORS.blue} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
-                  <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <Tooltip {...tooltipStyle} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
+                  <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
+                  <Tooltip {...ct.tooltip} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.blue} fill="url(#stepsGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ChartCard>
@@ -551,10 +636,10 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                       <stop offset="95%" stopColor={COLORS.cyan} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <Tooltip {...tooltipStyle} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <Tooltip {...ct.tooltip} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.cyan} fill="url(#sleepGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ChartCard>
@@ -569,10 +654,10 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                       <stop offset="95%" stopColor={COLORS.red} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <Tooltip {...tooltipStyle} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <Tooltip {...ct.tooltip} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.red} fill="url(#hrGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ChartCard>
@@ -587,10 +672,10 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                       <stop offset="95%" stopColor={COLORS.purple} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <Tooltip {...tooltipStyle} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <Tooltip {...ct.tooltip} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.purple} fill="url(#hrvGrad2)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ChartCard>
@@ -608,10 +693,10 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                     <stop offset="95%" stopColor={COLORS.green} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
-                <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
-                <Tooltip {...tooltipStyle} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
+                <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
+                <Tooltip {...ct.tooltip} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.green} fill="url(#distGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ChartCard>
@@ -626,10 +711,10 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                     <stop offset="95%" stopColor={COLORS.orange} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
-                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                <Tooltip {...tooltipStyle} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
+                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                <Tooltip {...ct.tooltip} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.orange} fill="url(#weightGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ChartCard>
@@ -638,10 +723,10 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           {workoutsByMonth.length > 0 && (
             <ChartCard title="Monthly Workouts" chartData={workoutsByMonth}>
               <BarChart margin={chartMargin} data={workoutsByMonth}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortMonth} interval="preserveStartEnd" minTickGap={40} />
-                <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
-                <Tooltip {...tooltipStyle} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortMonth} interval="preserveStartEnd" minTickGap={40} />
+                <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
+                <Tooltip {...ct.tooltip} />
                 <Bar dataKey="count" fill={COLORS.pink} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ChartCard>

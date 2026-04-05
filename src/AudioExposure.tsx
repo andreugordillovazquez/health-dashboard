@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import type { DailyAudio } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, AISummaryButton, TabHeader, tooltipStyle, chartMargin, COLORS, shortDate, shortMonth, avg } from './ui'
+import { StatBox, AISummaryButton, TabHeader, useChartTheme, chartMargin, COLORS, shortDate, shortMonth, avg } from './ui'
 
 // WHO/NIOSH safe exposure thresholds
 const SAFE_HEADPHONE_DB = 80 // 80 dB for prolonged exposure
@@ -18,6 +18,7 @@ interface Props {
 }
 
 export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _granularity }: Props) {
+  const ct = useChartTheme()
   const filtered = useMemo(() => {
     if (!cutoffDate) return dailyAudio
     return dailyAudio.filter(d => d.date >= cutoffDate)
@@ -158,11 +159,11 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
                       <stop offset="95%" stopColor={COLORS.purple} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <ReferenceLine y={SAFE_HEADPHONE_DB} stroke={COLORS.red} strokeDasharray="3 3" label={{ value: '80 dB limit', position: 'right', fill: '#71717a', fontSize: 10 }} />
-                  <Tooltip {...tooltipStyle} formatter={(v, name) => [`${v} dB`, name === 'avg' ? 'Average' : 'Peak']} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <ReferenceLine y={SAFE_HEADPHONE_DB} stroke={COLORS.red} strokeDasharray="3 3" label={{ value: '80 dB limit', position: 'right', fill: ct.tick, fontSize: 10 }} />
+                  <Tooltip {...ct.tooltip} formatter={(v, name) => [`${v} dB`, name === 'avg' ? 'Average' : 'Peak']} />
                   <Area type="monotone" dataKey="max" stroke={COLORS.purple} fill="url(#hpGrad)" strokeWidth={1} strokeOpacity={0.4} dot={false} />
                   <Line type="monotone" dataKey="avg" stroke={COLORS.purple} strokeWidth={1.5} dot={false} />
                 </AreaChart>
@@ -190,11 +191,11 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
                       <stop offset="95%" stopColor={COLORS.orange} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <ReferenceLine y={LOUD_ENV_DB} stroke={COLORS.red} strokeDasharray="3 3" label={{ value: '85 dB limit', position: 'right', fill: '#71717a', fontSize: 10 }} />
-                  <Tooltip {...tooltipStyle} formatter={(v, name) => [`${v} dB`, name === 'avg' ? 'Average' : 'Peak']} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <ReferenceLine y={LOUD_ENV_DB} stroke={COLORS.red} strokeDasharray="3 3" label={{ value: '85 dB limit', position: 'right', fill: ct.tick, fontSize: 10 }} />
+                  <Tooltip {...ct.tooltip} formatter={(v, name) => [`${v} dB`, name === 'avg' ? 'Average' : 'Peak']} />
                   <Area type="monotone" dataKey="max" stroke={COLORS.orange} fill="url(#envGrad)" strokeWidth={1} strokeOpacity={0.4} dot={false} />
                   <Line type="monotone" dataKey="avg" stroke={COLORS.orange} strokeWidth={1.5} dot={false} />
                 </AreaChart>
@@ -216,10 +217,10 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <BarChart margin={chartMargin} data={monthlyExposure}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortMonth} />
-                <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
-                <Tooltip {...tooltipStyle} formatter={(v, name) => [`${v}h`, name === 'headphone' ? 'Headphone' : 'Environmental']} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortMonth} />
+                <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
+                <Tooltip {...ct.tooltip} formatter={(v, name) => [`${v}h`, name === 'headphone' ? 'Headphone' : 'Environmental']} />
                 <Bar dataKey="headphone" fill={COLORS.purple} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

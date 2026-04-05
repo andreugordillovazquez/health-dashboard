@@ -142,6 +142,8 @@ export default function App() {
             dailyAudio: msg.data.dailyAudio,
             dailyBreathing: msg.data.dailyBreathing,
             dailyDaylight: msg.data.dailyDaylight,
+            dailyMobility: msg.data.dailyMobility,
+            runningDynamics: msg.data.runningDynamics,
             gpxFiles: gpxFilesRef.current,
             ecgFiles: ecgFilesRef.current,
             exportDate: msg.data.exportDate,

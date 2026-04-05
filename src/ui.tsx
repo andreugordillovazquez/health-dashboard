@@ -39,6 +39,26 @@ export const tooltipStyle = {
   labelStyle: { color: '#a1a1aa' },
 }
 
+export function useChartTheme() {
+  // Re-reads CSS vars each render so theme toggle is reflected
+  const dark = isDarkMode()
+  return {
+    grid: dark ? '#27272a' : '#e4e4e7',
+    tick: '#71717a',
+    bg: dark ? '#101014' : '#f4f4f5',
+    tooltip: {
+      contentStyle: {
+        background: dark ? '#101014' : '#ffffff',
+        border: `1px solid ${dark ? '#27272a' : '#e4e4e7'}`,
+        borderRadius: 8,
+        fontSize: 12,
+        color: dark ? '#e4e4e7' : '#27272a',
+      },
+      labelStyle: { color: dark ? '#a1a1aa' : '#71717a' },
+    },
+  }
+}
+
 export const chartMargin = { top: 5, right: 5, bottom: 0, left: -15 }
 
 // === Shared components ===

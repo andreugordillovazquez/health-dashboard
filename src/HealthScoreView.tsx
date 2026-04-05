@@ -4,10 +4,11 @@ import {
   CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, Radar,
 } from 'recharts'
 import type { HealthData } from './types'
-import { tooltipStyle, chartMargin, COLORS, shortDate, AISummaryButton, TabHeader } from './ui'
+import { chartMargin, COLORS, shortDate, AISummaryButton, TabHeader, useChartTheme } from './ui'
 import { computeHealthScores, rollingAvg, scoreLabel } from './healthScore'
 
 function ScoreRing({ score, size = 160, label }: { score: number; size?: number; label: string }) {
+  const ct = useChartTheme()
   const { color } = scoreLabel(score)
   const radius = (size - 16) / 2
   const circumference = 2 * Math.PI * radius
@@ -16,7 +17,7 @@ function ScoreRing({ score, size = 160, label }: { score: number; size?: number;
   return (
     <div className="flex flex-col items-center">
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#27272a" strokeWidth={8} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke={ct.grid} strokeWidth={8} fill="none" />
         <circle
           cx={size / 2} cy={size / 2} r={radius}
           stroke={color} strokeWidth={8} fill="none"
@@ -39,6 +40,7 @@ interface Props {
 }
 
 export default function HealthScoreView({ data, cutoffDate }: Props) {
+  const ct = useChartTheme()
   const allScores = useMemo(() => computeHealthScores(data), [data])
 
   const filtered = useMemo(() => {
@@ -108,7 +110,7 @@ export default function HealthScoreView({ data, cutoffDate }: Props) {
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
-                  <PolarGrid stroke="#27272a" />
+                  <PolarGrid stroke={ct.grid} />
                   <PolarAngleAxis dataKey="category" tick={{ fontSize: 11, fill: '#a1a1aa' }} />
                   <Radar dataKey="score" stroke={COLORS.green} fill={COLORS.green} fillOpacity={0.15} strokeWidth={2} />
                 </RadarChart>
@@ -147,11 +149,11 @@ export default function HealthScoreView({ data, cutoffDate }: Props) {
                     <stop offset="95%" stopColor={COLORS.green} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#71717a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: ct.tick }} />
                 <Tooltip
-                  {...tooltipStyle}
+                  {...ct.tooltip}
                   formatter={(v, name) => [`${v}`, name === 'total' ? 'Total' : String(name)]}
                 />
                 <Area type="monotone" dataKey="total" stroke={COLORS.green} fill="url(#scoreGrad)" strokeWidth={2} dot={false} />
@@ -186,10 +188,10 @@ export default function HealthScoreView({ data, cutoffDate }: Props) {
                         <stop offset="95%" stopColor={color} stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#71717a' }} />
-                    <Tooltip {...tooltipStyle} formatter={(v) => [`${v}`, label]} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: ct.tick }} />
+                    <Tooltip {...ct.tooltip} formatter={(v) => [`${v}`, label]} />
                     <Area type="monotone" dataKey={key} stroke={color} fill={`url(#${key}ScoreGrad)`} strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>

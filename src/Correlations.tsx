@@ -4,7 +4,7 @@ import {
   CartesianGrid, ZAxis, AreaChart, Area,
 } from 'recharts'
 import type { DailyMetrics, SleepRecord, CaffeineRecord, DailyBreathing, CardioRecord } from './types'
-import { tooltipStyle, AISummaryButton, shortDateCompact, TabHeader } from './ui'
+import { AISummaryButton, shortDateCompact, TabHeader, useChartTheme } from './ui'
 
 interface CorrelationResult {
   label: string
@@ -78,6 +78,7 @@ function humanInterpretation(result: CorrelationResult): string {
 }
 
 function CorrelationCard({ result, chart }: { result: CorrelationResult; chart?: ChartConfig }) {
+  const ct = useChartTheme()
   const strength = Math.abs(result.r)
   const barColor = strength > 0.5 ? (result.r > 0 ? '#22c55e' : '#ef4444') :
     strength > 0.3 ? (result.r > 0 ? '#4ade80' : '#f87171') :
@@ -120,11 +121,11 @@ function CorrelationCard({ result, chart }: { result: CorrelationResult; chart?:
         <div className="h-44 -mx-1">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
             <ScatterChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey={chart.xKey} name={chart.xName} unit={chart.xUnit} tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis dataKey={chart.yKey} name={chart.yName} unit={chart.yUnit} domain={chart.yDomain || ['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+              <XAxis dataKey={chart.xKey} name={chart.xName} unit={chart.xUnit} tick={{ fontSize: 10, fill: ct.tick }} />
+              <YAxis dataKey={chart.yKey} name={chart.yName} unit={chart.yUnit} domain={chart.yDomain || ['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
               <ZAxis range={chart.zRange || [20, 40]} />
-              <Tooltip {...tooltipStyle} />
+              <Tooltip {...ct.tooltip} />
               <Scatter data={chart.data as Record<string, unknown>[]} fill={chart.color} opacity={0.5} />
             </ScatterChart>
           </ResponsiveContainer>
@@ -383,6 +384,8 @@ export default function Correlations({ metrics, sleepRecords, caffeineRecords, d
     return results.sort((a, b) => Math.abs(b.r) - Math.abs(a.r))
   }, [sleepHrvData, sleepHrData, exerciseHrData, exerciseHrvData, exerciseSleepData, caffeineSleepData, stepsSleepData, stepsHrData, daylightSleepData, daylightHrvData, sleepDisturbanceData, vo2HrData])
 
+  const ct = useChartTheme()
+
   // Rolling correlation: sleep vs HRV over time (30-day window)
   const rollingCorr = useMemo(() => {
     const sorted = [...metrics].sort((a, b) => a.date.localeCompare(b.date))
@@ -484,10 +487,10 @@ export default function Correlations({ metrics, sleepRecords, caffeineRecords, d
                     <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
-                <YAxis domain={[-1, 1]} tick={{ fontSize: 10, fill: '#71717a' }} />
-                <Tooltip {...tooltipStyle} formatter={(v) => [`r = ${v}`, 'Correlation']} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} />
+                <YAxis domain={[-1, 1]} tick={{ fontSize: 10, fill: ct.tick }} />
+                <Tooltip {...ct.tooltip} formatter={(v) => [`r = ${v}`, 'Correlation']} />
                 <Area type="monotone" dataKey="r" stroke="#8b5cf6" fill="url(#rollingCorrGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>

@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import type { GpxPoint } from './types'
 import 'leaflet/dist/leaflet.css'
-import { tooltipStyle, chartMargin, AISummaryButton, TabHeader } from './ui'
+import { chartMargin, AISummaryButton, TabHeader, useChartTheme } from './ui'
 
 interface ParsedRoute {
   filename: string
@@ -178,6 +178,7 @@ function formatDate(d: string): string {
 const ROUTE_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ef4444', '#06b6d4', '#ec4899', '#facc15']
 
 export default function RouteComparison({ gpxFiles }: { gpxFiles: Map<string, File> }) {
+  const ct = useChartTheme()
   const [routes, setRoutes] = useState<ParsedRoute[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedGroup, setSelectedGroup] = useState<number>(0)
@@ -317,16 +318,16 @@ export default function RouteComparison({ gpxFiles }: { gpxFiles: Map<string, Fi
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#71717a' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: ct.tick }} />
                     <YAxis
                       domain={['auto', 'auto']}
-                      tick={{ fontSize: 10, fill: '#71717a' }}
+                      tick={{ fontSize: 10, fill: ct.tick }}
                       tickFormatter={v => formatPace(v)}
                       reversed
                     />
                     <Tooltip
-                      {...tooltipStyle}
+                      {...ct.tooltip}
                       formatter={(v) => [formatPace(v as number) + ' /km', 'Pace']}
                     />
                     <Area type="monotone" dataKey="pace" stroke="#3b82f6" fill="url(#paceGrad)" strokeWidth={2} dot={{ r: 3 }} />
@@ -347,10 +348,10 @@ export default function RouteComparison({ gpxFiles }: { gpxFiles: Map<string, Fi
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                   <BarChart margin={chartMargin} data={paceData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#71717a' }} />
-                    <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
-                    <Tooltip {...tooltipStyle} formatter={(v) => [`${v} km/h`, 'Speed']} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: ct.tick }} />
+                    <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
+                    <Tooltip {...ct.tooltip} formatter={(v) => [`${v} km/h`, 'Speed']} />
                     <Bar dataKey="speed" radius={[4, 4, 0, 0]}>
                       {paceData.map((d, i) => (
                         <rect key={i} fill={d.color} />

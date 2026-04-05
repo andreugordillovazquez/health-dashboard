@@ -186,6 +186,28 @@ export interface GarminMetrics {
   sleepScores: GarminSleepScore[]
 }
 
+export interface DailyMobility {
+  date: string
+  walkingSpeed: number | null // km/h
+  stepLength: number | null // cm
+  doubleSupportPct: number | null // %
+  asymmetryPct: number | null // %
+  stairAscentSpeed: number | null // m/s
+  stairDescentSpeed: number | null // m/s
+  walkingSteadiness: number | null // % (0-100)
+  sixMinWalkDistance: number | null // meters
+  flightsClimbed: number
+}
+
+export interface RunningDynamicsRecord {
+  date: string
+  power: number | null // watts
+  speed: number | null // m/s
+  verticalOscillation: number | null // cm
+  groundContactTime: number | null // ms
+  strideLength: number | null // meters
+}
+
 export interface HealthData {
   profile: {
     dob: string
@@ -205,6 +227,8 @@ export interface HealthData {
   dailyAudio: DailyAudio[]
   dailyBreathing: DailyBreathing[]
   dailyDaylight: { date: string; minutes: number }[]
+  dailyMobility: DailyMobility[]
+  runningDynamics: RunningDynamicsRecord[]
   gpxFiles: Map<string, File> // filename -> File
   ecgFiles: Map<string, File> // filename -> File
   exportDate: string
@@ -235,6 +259,8 @@ export interface ParseComplete {
     dailyAudio: DailyAudio[]
     dailyBreathing: DailyBreathing[]
     dailyDaylight: { date: string; minutes: number }[]
+    dailyMobility: DailyMobility[]
+    runningDynamics: RunningDynamicsRecord[]
     exportDate: string
   }
 }

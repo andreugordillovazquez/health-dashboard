@@ -4,7 +4,7 @@ import {
   CartesianGrid, BarChart, Bar, ReferenceLine,
 } from 'recharts'
 import type { Granularity } from './analysis'
-import { StatBox, AISummaryButton, TabHeader, tooltipStyle, COLORS, shortDate, avg } from './ui'
+import { StatBox, AISummaryButton, TabHeader, useChartTheme, COLORS, shortDate, avg } from './ui'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -15,6 +15,7 @@ interface Props {
 }
 
 export default function Daylight({ dailyDaylight, cutoffDate, granularity: _granularity }: Props) {
+  const ct = useChartTheme()
   const filtered = useMemo(() => {
     if (!cutoffDate) return dailyDaylight
     return dailyDaylight.filter(d => d.date >= cutoffDate)
@@ -133,11 +134,11 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
                     <stop offset="95%" stopColor={COLORS.yellow} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
-                <ReferenceLine y={30} stroke="#71717a" strokeDasharray="3 3" label={{ value: '30 min goal', position: 'right', fill: '#71717a', fontSize: 10 }} />
-                <Tooltip {...tooltipStyle} formatter={(v) => [`${v} min`, 'Daylight']} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
+                <ReferenceLine y={30} stroke="#71717a" strokeDasharray="3 3" label={{ value: '30 min goal', position: 'right', fill: ct.tick, fontSize: 10 }} />
+                <Tooltip {...ct.tooltip} formatter={(v) => [`${v} min`, 'Daylight']} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.yellow} fill="url(#daylightGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -159,11 +160,11 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <BarChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={monthlyPattern}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: ct.tick }} />
+                  <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={30} stroke="#71717a" strokeDasharray="3 3" />
-                  <Tooltip {...tooltipStyle} formatter={(v) => [`${v} min/day`, 'Avg Daylight']} />
+                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} min/day`, 'Avg Daylight']} />
                   <Bar dataKey="avg" fill={COLORS.yellow} radius={[4, 4, 0, 0]} opacity={0.8} />
                 </BarChart>
               </ResponsiveContainer>
@@ -184,19 +185,19 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <BarChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={monthlyByYear}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis
                     dataKey="month"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: ct.tick }}
                     tickFormatter={d => {
                       const parts = d.split('-')
                       return `${MONTHS[parseInt(parts[1]) - 1]} '${parts[0].substring(2)}`
                     }}
                   />
-                  <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
+                  <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={30} stroke="#71717a" strokeDasharray="3 3" />
                   <Tooltip
-                    {...tooltipStyle}
+                    {...ct.tooltip}
                     formatter={(v) => [`${v} min/day`, 'Avg Daylight']}
                   />
                   <Bar dataKey="avg" fill={COLORS.yellow} radius={[4, 4, 0, 0]} opacity={0.7} />

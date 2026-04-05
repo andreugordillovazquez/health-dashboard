@@ -568,6 +568,8 @@ export async function parseGarminExport(
     dailyAudio: [],
     dailyBreathing,
     dailyDaylight: [],
+    dailyMobility: [],
+    runningDynamics: [],
     gpxFiles: new Map(),
     ecgFiles: new Map(),
     exportDate,

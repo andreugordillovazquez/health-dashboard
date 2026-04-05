@@ -1,4 +1,4 @@
-import type { DailyMetrics, Workout, SleepRecord, CaffeineRecord, BodyRecord, CardioRecord, DailyHR, HRSample, DailyAudio, DailyBreathing, WristTempRecord, MenstrualRecord, ParseProgress, ParseComplete, ParseError } from './types'
+import type { DailyMetrics, Workout, SleepRecord, CaffeineRecord, BodyRecord, CardioRecord, DailyHR, HRSample, DailyAudio, DailyBreathing, WristTempRecord, MenstrualRecord, DailyMobility, RunningDynamicsRecord, ParseProgress, ParseComplete, ParseError } from './types'
 
 interface Accumulator {
   // These track per-source to deduplicate iPhone+Watch overlap
@@ -63,6 +63,22 @@ const METRIC_TYPES = new Set([
   'HKQuantityTypeIdentifierBasalBodyTemperature',
   'HKCategoryTypeIdentifierSexualActivity',
   'HKCategoryTypeIdentifierIntermenstrualBleeding',
+  // Mobility & Gait
+  'HKQuantityTypeIdentifierWalkingSpeed',
+  'HKQuantityTypeIdentifierWalkingStepLength',
+  'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage',
+  'HKQuantityTypeIdentifierWalkingAsymmetryPercentage',
+  'HKQuantityTypeIdentifierStairAscentSpeed',
+  'HKQuantityTypeIdentifierStairDescentSpeed',
+  'HKQuantityTypeIdentifierAppleWalkingSteadiness',
+  'HKQuantityTypeIdentifierSixMinuteWalkTestDistance',
+  'HKQuantityTypeIdentifierFlightsClimbed',
+  // Running Dynamics
+  'HKQuantityTypeIdentifierRunningPower',
+  'HKQuantityTypeIdentifierRunningSpeed',
+  'HKQuantityTypeIdentifierRunningVerticalOscillation',
+  'HKQuantityTypeIdentifierRunningGroundContactTime',
+  'HKQuantityTypeIdentifierRunningStrideLength',
 ])
 
 const STAGE_MAP: Record<string, SleepRecord['stage']> = {
@@ -102,6 +118,9 @@ async function parseFile(file: File) {
   const breathingAcc = new Map<string, { disturbances: number[]; respRate: number[]; spo2: number[] }>()
   const daylightAcc = new Map<string, number>()
   const menstrualAcc = new Map<string, { flow: MenstrualRecord['flow']; cervicalMucus: MenstrualRecord['cervicalMucus']; ovulationTest: MenstrualRecord['ovulationTest']; basalBodyTemp: number | null; sexualActivity: boolean; intermenstrualBleeding: boolean }>()
+  const mobilityAcc = new Map<string, { walkingSpeed: number[]; stepLength: number[]; doubleSupportPct: number[]; asymmetryPct: number[]; stairAscent: number[]; stairDescent: number[]; steadiness: number[]; sixMinWalk: number[]; flights: number }>()
+  const runningAcc = new Map<string, { power: number[]; speed: number[]; vertOsc: number[]; groundContact: number[]; strideLen: number[] }>()
+
   let profile = { dob: '', sex: '', bloodType: '' }
   let exportDate = ''
   let recordCount = 0
@@ -238,6 +257,48 @@ async function parseFile(file: File) {
       if (type === 'HKCategoryTypeIdentifierAudioExposureEvent') {
         if (!audioAcc.has(day)) audioAcc.set(day, { hpVals: [], hpMins: 0, envVals: [], envMins: 0, events: 0 })
         audioAcc.get(day)!.events++
+        recordCount++
+        continue
+      }
+
+      // Mobility & Gait
+      if (type === 'HKQuantityTypeIdentifierWalkingSpeed' ||
+          type === 'HKQuantityTypeIdentifierWalkingStepLength' ||
+          type === 'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage' ||
+          type === 'HKQuantityTypeIdentifierWalkingAsymmetryPercentage' ||
+          type === 'HKQuantityTypeIdentifierStairAscentSpeed' ||
+          type === 'HKQuantityTypeIdentifierStairDescentSpeed' ||
+          type === 'HKQuantityTypeIdentifierAppleWalkingSteadiness' ||
+          type === 'HKQuantityTypeIdentifierSixMinuteWalkTestDistance' ||
+          type === 'HKQuantityTypeIdentifierFlightsClimbed') {
+        if (!mobilityAcc.has(day)) mobilityAcc.set(day, { walkingSpeed: [], stepLength: [], doubleSupportPct: [], asymmetryPct: [], stairAscent: [], stairDescent: [], steadiness: [], sixMinWalk: [], flights: 0 })
+        const m = mobilityAcc.get(day)!
+        if (type === 'HKQuantityTypeIdentifierWalkingSpeed') m.walkingSpeed.push(value)
+        else if (type === 'HKQuantityTypeIdentifierWalkingStepLength') m.stepLength.push(value * 100) // m -> cm
+        else if (type === 'HKQuantityTypeIdentifierWalkingDoubleSupportPercentage') m.doubleSupportPct.push(value > 1 ? value : value * 100)
+        else if (type === 'HKQuantityTypeIdentifierWalkingAsymmetryPercentage') m.asymmetryPct.push(value > 1 ? value : value * 100)
+        else if (type === 'HKQuantityTypeIdentifierStairAscentSpeed') m.stairAscent.push(value)
+        else if (type === 'HKQuantityTypeIdentifierStairDescentSpeed') m.stairDescent.push(value)
+        else if (type === 'HKQuantityTypeIdentifierAppleWalkingSteadiness') m.steadiness.push(value > 1 ? value : value * 100)
+        else if (type === 'HKQuantityTypeIdentifierSixMinuteWalkTestDistance') m.sixMinWalk.push(value)
+        else if (type === 'HKQuantityTypeIdentifierFlightsClimbed') m.flights += value
+        recordCount++
+        continue
+      }
+
+      // Running Dynamics
+      if (type === 'HKQuantityTypeIdentifierRunningPower' ||
+          type === 'HKQuantityTypeIdentifierRunningSpeed' ||
+          type === 'HKQuantityTypeIdentifierRunningVerticalOscillation' ||
+          type === 'HKQuantityTypeIdentifierRunningGroundContactTime' ||
+          type === 'HKQuantityTypeIdentifierRunningStrideLength') {
+        if (!runningAcc.has(day)) runningAcc.set(day, { power: [], speed: [], vertOsc: [], groundContact: [], strideLen: [] })
+        const r = runningAcc.get(day)!
+        if (type === 'HKQuantityTypeIdentifierRunningPower') r.power.push(value)
+        else if (type === 'HKQuantityTypeIdentifierRunningSpeed') r.speed.push(value)
+        else if (type === 'HKQuantityTypeIdentifierRunningVerticalOscillation') r.vertOsc.push(value * 100) // m -> cm
+        else if (type === 'HKQuantityTypeIdentifierRunningGroundContactTime') r.groundContact.push(value)
+        else if (type === 'HKQuantityTypeIdentifierRunningStrideLength') r.strideLen.push(value)
         recordCount++
         continue
       }
@@ -566,6 +627,40 @@ async function parseFile(file: File) {
   }
   menstrualRecords.sort((a, b) => a.date.localeCompare(b.date))
 
+  // Build daily mobility
+  const dailyMobility: DailyMobility[] = []
+  for (const [day, m] of mobilityAcc) {
+    const a = (arr: number[]) => arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length * 100) / 100 : null
+    dailyMobility.push({
+      date: day,
+      walkingSpeed: a(m.walkingSpeed),
+      stepLength: a(m.stepLength),
+      doubleSupportPct: a(m.doubleSupportPct),
+      asymmetryPct: a(m.asymmetryPct),
+      stairAscentSpeed: a(m.stairAscent),
+      stairDescentSpeed: a(m.stairDescent),
+      walkingSteadiness: a(m.steadiness),
+      sixMinWalkDistance: a(m.sixMinWalk),
+      flightsClimbed: Math.round(m.flights),
+    })
+  }
+  dailyMobility.sort((a, b) => a.date.localeCompare(b.date))
+
+  // Build running dynamics
+  const runningDynamics: RunningDynamicsRecord[] = []
+  for (const [day, r] of runningAcc) {
+    const a = (arr: number[]) => arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length * 100) / 100 : null
+    runningDynamics.push({
+      date: day,
+      power: a(r.power),
+      speed: a(r.speed),
+      verticalOscillation: a(r.vertOsc),
+      groundContactTime: a(r.groundContact),
+      strideLength: a(r.strideLen),
+    })
+  }
+  runningDynamics.sort((a, b) => a.date.localeCompare(b.date))
+
   self.postMessage({
     type: 'complete',
     data: {
@@ -585,6 +680,8 @@ async function parseFile(file: File) {
       dailyDaylight: Array.from(daylightAcc.entries())
         .map(([date, minutes]) => ({ date, minutes: Math.round(minutes) }))
         .sort((a, b) => a.date.localeCompare(b.date)),
+      dailyMobility,
+      runningDynamics,
       exportDate,
     },
   } as ParseComplete)

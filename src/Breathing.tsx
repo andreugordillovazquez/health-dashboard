@@ -4,7 +4,7 @@ import {
   CartesianGrid, AreaChart, Area, ReferenceLine, ScatterChart, Scatter, ZAxis,
 } from 'recharts'
 import type { DailyBreathing } from './types'
-import { StatBox, AISummaryButton, TabHeader, tooltipStyle, chartMargin, COLORS, shortDate, avg } from './ui'
+import { StatBox, AISummaryButton, TabHeader, useChartTheme, chartMargin, COLORS, shortDate, avg } from './ui'
 
 // Apple's thresholds for breathing disturbances
 // < 5: not elevated, 5-14.9: mildly elevated, 15-29.9: moderately elevated, >= 30: severely elevated
@@ -21,6 +21,7 @@ interface Props {
 }
 
 export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
+  const ct = useChartTheme()
   const filtered = useMemo(() => {
     if (!cutoffDate) return dailyBreathing
     return dailyBreathing.filter(d => d.date >= cutoffDate)
@@ -188,12 +189,12 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
                     <stop offset="95%" stopColor={COLORS.red} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                <ReferenceLine y={5} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Mild', position: 'right', fill: '#71717a', fontSize: 10 }} />
-                <ReferenceLine y={15} stroke={COLORS.red} strokeDasharray="3 3" label={{ value: 'Moderate', position: 'right', fill: '#71717a', fontSize: 10 }} />
-                <Tooltip {...tooltipStyle} formatter={(v) => [`${v}/hr`, 'Disturbances']} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                <ReferenceLine y={5} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Mild', position: 'right', fill: ct.tick, fontSize: 10 }} />
+                <ReferenceLine y={15} stroke={COLORS.red} strokeDasharray="3 3" label={{ value: 'Moderate', position: 'right', fill: ct.tick, fontSize: 10 }} />
+                <Tooltip {...ct.tooltip} formatter={(v) => [`${v}/hr`, 'Disturbances']} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.red} fill="url(#distGrad2)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -221,12 +222,12 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
                       <stop offset="95%" stopColor={COLORS.blue} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={12} stroke="#71717a" strokeDasharray="3 3" />
                   <ReferenceLine y={20} stroke="#71717a" strokeDasharray="3 3" />
-                  <Tooltip {...tooltipStyle} formatter={(v) => [`${v} br/min`, 'Respiratory Rate']} />
+                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} br/min`, 'Respiratory Rate']} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.blue} fill="url(#respRateGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -253,11 +254,11 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
                       <stop offset="95%" stopColor={COLORS.green} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 100]} tick={{ fontSize: 10, fill: '#71717a' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 100]} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={95} stroke="#71717a" strokeDasharray="3 3" />
-                  <Tooltip {...tooltipStyle} formatter={(v) => [`${v}%`, 'SpO2']} />
+                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v}%`, 'SpO2']} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.green} fill="url(#spo2Grad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -279,12 +280,12 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <ScatterChart margin={chartMargin}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="disturbances" name="Disturbances" unit="/hr" tick={{ fontSize: 10, fill: '#71717a' }} />
-                <YAxis dataKey="spo2" name="SpO2" unit="%" domain={['auto', 100]} tick={{ fontSize: 10, fill: '#71717a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="disturbances" name="Disturbances" unit="/hr" tick={{ fontSize: 10, fill: ct.tick }} />
+                <YAxis dataKey="spo2" name="SpO2" unit="%" domain={['auto', 100]} tick={{ fontSize: 10, fill: ct.tick }} />
                 <ZAxis range={[20, 40]} />
                 <Tooltip
-                  {...tooltipStyle}
+                  {...ct.tooltip}
                   formatter={(v, name) => [
                     name === 'Disturbances' ? `${v}/hr` : `${v}%`,
                     name as string,

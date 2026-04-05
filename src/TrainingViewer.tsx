@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import type { GpxRoute, GpxPoint, Workout, HRSample } from './types'
 import 'leaflet/dist/leaflet.css'
-import { StatBox, tooltipStyle, AISummaryButton, TabHeader } from './ui'
+import { StatBox, AISummaryButton, TabHeader, useChartTheme } from './ui'
 
 interface Props {
   workouts: Workout[]
@@ -110,6 +110,7 @@ function FitBounds({ points }: { points: GpxPoint[] }) {
 }
 
 function RouteDetail({ route }: { route: GpxRoute }) {
+  const ct = useChartTheme()
   const positions = useMemo(
     () => route.points.map(p => [p.lat, p.lon] as [number, number]),
     [route]
@@ -182,16 +183,16 @@ function RouteDetail({ route }: { route: GpxRoute }) {
                     <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis
                   dataKey="dist"
-                  tick={{ fontSize: 10, fill: '#71717a' }}
+                  tick={{ fontSize: 10, fill: ct.tick }}
                   tickFormatter={v => `${v} km`}
                 />
-                <YAxis yAxisId="ele" tick={{ fontSize: 10, fill: '#71717a' }} domain={['auto', 'auto']} />
-                <YAxis yAxisId="speed" orientation="right" tick={{ fontSize: 10, fill: '#71717a' }} domain={[0, 'auto']} />
+                <YAxis yAxisId="ele" tick={{ fontSize: 10, fill: ct.tick }} domain={['auto', 'auto']} />
+                <YAxis yAxisId="speed" orientation="right" tick={{ fontSize: 10, fill: ct.tick }} domain={[0, 'auto']} />
                 <Tooltip
-                  {...tooltipStyle}
+                  {...ct.tooltip}
                   formatter={(value, name) => [
                     name === 'ele' ? `${value} m` : `${value} km/h`,
                     name === 'ele' ? 'Elevation' : 'Speed',
@@ -323,6 +324,7 @@ function KmSplits({ route }: { route: GpxRoute }) {
 }
 
 export default function TrainingViewer({ workouts, gpxFiles, hrTimeline, dob }: Props) {
+  const ct = useChartTheme()
   const [routes, setRoutes] = useState<GpxRoute[]>([])
   const [selectedIdx, setSelectedIdx] = useState<number>(0)
   const [loading, setLoading] = useState(true)
@@ -517,15 +519,15 @@ export default function TrainingViewer({ workouts, gpxFiles, hrTimeline, dob }: 
                           <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                      <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                       <XAxis
                         dataKey="min"
-                        tick={{ fontSize: 10, fill: '#71717a' }}
+                        tick={{ fontSize: 10, fill: ct.tick }}
                         tickFormatter={v => `${Math.floor(v as number)}m`}
                       />
-                      <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
+                      <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                       <Tooltip
-                        {...tooltipStyle}
+                        {...ct.tooltip}
                         formatter={(v) => [`${v} bpm`, 'Heart Rate']}
                         labelFormatter={v => `${Math.floor(v as number)}m ${Math.round(((v as number) % 1) * 60)}s`}
                       />

@@ -1,11 +1,11 @@
 import { useMemo } from 'react'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  AreaChart, Area, ScatterChart, Scatter, ZAxis, ReferenceLine,
+  AreaChart, Area, ScatterChart, Scatter, ZAxis, ReferenceLine, ComposedChart, Line,
 } from 'recharts'
 import type { SleepRecord, DailySleep, WristTempRecord, DailyBreathing } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, tooltipStyle, chartMargin, COLORS, shortDate, avg, Legend, AISummaryButton, TabHeader } from './ui'
+import { StatBox, chartMargin, COLORS, shortDate, avg, Legend, AISummaryButton, TabHeader, useChartTheme } from './ui'
 
 const SLEEP_COLORS = { core: '#6366f1', deep: COLORS.purple, rem: COLORS.cyan, awake: COLORS.orange, temp: COLORS.red }
 
@@ -151,6 +151,7 @@ interface Props {
 }
 
 export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBreathing, cutoffDate, granularity: _granularity }: Props) {
+  const ct = useChartTheme()
   const filtered = useMemo(() => {
     if (!cutoffDate) return sleepRecords
     return sleepRecords.filter(r => r.date >= cutoffDate)
@@ -311,6 +312,37 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
   const recentDist = recentBreathing.filter(d => d.disturbances !== null).map(d => d.disturbances!)
   const avgDist = recentDist.length > 0 ? avg(recentDist) : null
 
+  // Sleep debt: cumulative deficit against 8h target (rolling 14-day window)
+  const TARGET_HOURS = 8
+  const sleepDebtData = useMemo(() => {
+    if (dailySleep.length === 0) return []
+    const sorted = [...dailySleep].sort((a, b) => a.date.localeCompare(b.date))
+    let cumDebt = 0
+    return sorted.map(d => {
+      const hoursSlept = d.total / 60
+      const diff = hoursSlept - TARGET_HOURS
+      cumDebt += diff
+      return {
+        date: d.date,
+        debt: Math.round(cumDebt * 10) / 10,
+        nightly: Math.round(diff * 10) / 10,
+      }
+    })
+  }, [dailySleep])
+
+  const filteredDebt = useMemo(() => {
+    if (!cutoffDate) return sleepDebtData
+    return sleepDebtData.filter(d => d.date >= cutoffDate)
+  }, [sleepDebtData, cutoffDate])
+
+  const currentDebt = filteredDebt.length > 0 ? filteredDebt[filteredDebt.length - 1].debt : null
+  // Recent 7-day debt
+  const recent7Debt = useMemo(() => {
+    const last7 = dailySleep.slice(-7)
+    if (last7.length === 0) return null
+    return Math.round(last7.reduce((s, d) => s + (d.total / 60 - TARGET_HOURS), 0) * 10) / 10
+  }, [dailySleep])
+
   if (dailySleep.length === 0 && filteredBreathing.length === 0) {
     return <div className="text-zinc-500 text-center py-20">No sleep stage data found.</div>
   }
@@ -346,7 +378,62 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
             color={avgEfficiency >= 85 ? '#22c55e' : avgEfficiency >= 75 ? '#f97316' : '#ef4444'}
           />
         )}
+        {recent7Debt !== null && (
+          <StatBox
+            label="7-Day Debt"
+            value={`${recent7Debt > 0 ? '+' : ''}${recent7Debt}h`}
+            sub={recent7Debt >= 0 ? 'Surplus' : 'Deficit'}
+            color={recent7Debt >= 0 ? '#22c55e' : recent7Debt >= -3 ? '#f97316' : '#ef4444'}
+          />
+        )}
       </div>
+
+      {/* Sleep Debt Tracker */}
+      {filteredDebt.length > 7 && (
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Sleep Debt</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Cumulative surplus or deficit against an {TARGET_HOURS}h nightly target. Below zero means you owe your body sleep.</p>
+            </div>
+            <AISummaryButton title="Sleep Debt" description={`Cumulative sleep surplus/deficit vs ${TARGET_HOURS}h target`} chartData={filteredDebt} />
+          </div>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
+              <ComposedChart margin={chartMargin} data={filteredDebt}>
+                <defs>
+                  <linearGradient id="debtPosGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="debtNegGrad" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
+                <ReferenceLine y={0} stroke="#71717a" strokeDasharray="3 3" />
+                <Tooltip {...ct.tooltip} formatter={(v, name) => [
+                  name === 'debt' ? `${v}h` : `${(v as number) > 0 ? '+' : ''}${v}h`,
+                  name === 'debt' ? 'Cumulative Debt' : 'Nightly Δ'
+                ]} />
+                <Area type="monotone" dataKey="debt" stroke={currentDebt !== null && currentDebt >= 0 ? '#22c55e' : '#ef4444'} fill={currentDebt !== null && currentDebt >= 0 ? 'url(#debtPosGrad)' : 'url(#debtNegGrad)'} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="nightly" stroke={COLORS.cyan} strokeWidth={1} dot={false} strokeOpacity={0.4} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          {currentDebt !== null && (
+            <p className="text-xs text-zinc-500 text-center mt-2">
+              {currentDebt >= 0
+                ? `You're ${currentDebt}h ahead of your ${TARGET_HOURS}h target.`
+                : `You owe your body ${Math.abs(currentDebt)}h of sleep.`
+              }
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Sleep stages stacked bar (weekly) */}
       {weeklyData.length > 0 && (
@@ -360,11 +447,11 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <BarChart margin={chartMargin} data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
                 <Tooltip
-                  {...tooltipStyle}
+                  {...ct.tooltip}
                   formatter={(value, name) => [`${value}h`, name === 'core' ? 'Core' : name === 'deep' ? 'Deep' : name === 'rem' ? 'REM' : 'Awake']}
                 />
                 <Bar dataKey="deep" stackId="sleep" fill={SLEEP_COLORS.deep} radius={[0, 0, 0, 0]} />
@@ -408,15 +495,15 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                       <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis
                     domain={['auto', 'auto']}
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: ct.tick }}
                     tickFormatter={v => minutesToTime(v > 1440 ? v - 1440 : v)}
                   />
                   <Tooltip
-                    {...tooltipStyle}
+                    {...ct.tooltip}
                     formatter={(v, name) => [minutesToTime((v as number) > 1440 ? (v as number) - 1440 : (v as number)), name === 'bedtime' ? 'Bedtime' : 'Wake time']}
                   />
                   <Area type="monotone" dataKey="bedtime" stroke={SLEEP_COLORS.deep} fill="url(#bedtimeGrad)" strokeWidth={1.5} dot={false} connectNulls />
@@ -449,10 +536,10 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                       <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <Tooltip {...tooltipStyle} formatter={(v) => [`${v}h`, 'Total Sleep']} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v}h`, 'Total Sleep']} />
                   <Area type="monotone" dataKey="total" stroke="#6366f1" fill="url(#sleepTotalGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -472,22 +559,22 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
                 <ScatterChart margin={chartMargin}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: ct.tick }}
                     tickFormatter={shortDate}
                   />
                   <YAxis
                     dataKey="bedtime"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: ct.tick }}
                     domain={['auto', 'auto']}
                     tickFormatter={v => minutesToTime(v > 1440 ? v - 1440 : v)}
                     reversed
                   />
                   <ZAxis dataKey="total" range={[20, 80]} />
                   <Tooltip
-                    {...tooltipStyle}
+                    {...ct.tooltip}
                     formatter={(value, name) => {
                       if (typeof value !== 'number') return [`${value}`, String(name)]
                       if (name === 'bedtime') return [minutesToTime(value > 1440 ? value - 1440 : value), 'Bedtime']
@@ -531,12 +618,12 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                       <stop offset="95%" stopColor={SLEEP_COLORS.temp} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={v => `${v > 0 ? '+' : ''}${v}°`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={v => `${v > 0 ? '+' : ''}${v}°`} />
                   <ReferenceLine y={0} stroke="#71717a" strokeDasharray="3 3" />
                   <Tooltip
-                    {...tooltipStyle}
+                    {...ct.tooltip}
                     formatter={(v, name) => {
                       if (name === 'deviation') return [`${(v as number) > 0 ? '+' : ''}${v}°C`, 'Deviation']
                       return [`${v}°C`, 'Temperature']
@@ -577,12 +664,12 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                         <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                    <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                    <ReferenceLine y={5} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Mild', position: 'right', fill: '#71717a', fontSize: 10 }} />
-                    <ReferenceLine y={15} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Moderate', position: 'right', fill: '#71717a', fontSize: 10 }} />
-                    <Tooltip {...tooltipStyle} formatter={(v) => [`${v}/hr`, 'Disturbances']} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                    <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                    <ReferenceLine y={5} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Mild', position: 'right', fill: ct.tick, fontSize: 10 }} />
+                    <ReferenceLine y={15} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Moderate', position: 'right', fill: ct.tick, fontSize: 10 }} />
+                    <Tooltip {...ct.tooltip} formatter={(v) => [`${v}/hr`, 'Disturbances']} />
                     <Area type="monotone" dataKey="value" stroke="#ef4444" fill="url(#distGrad2)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -610,12 +697,12 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                           <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                      <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                      <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                      <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                      <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                       <ReferenceLine y={12} stroke="#71717a" strokeDasharray="3 3" />
                       <ReferenceLine y={20} stroke="#71717a" strokeDasharray="3 3" />
-                      <Tooltip {...tooltipStyle} formatter={(v) => [`${v} br/min`, 'Respiratory Rate']} />
+                      <Tooltip {...ct.tooltip} formatter={(v) => [`${v} br/min`, 'Respiratory Rate']} />
                       <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#sleepRespRateGrad)" strokeWidth={1.5} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -642,11 +729,11 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                           <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                      <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                      <YAxis domain={['auto', 100]} tick={{ fontSize: 10, fill: '#71717a' }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                      <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                      <YAxis domain={['auto', 100]} tick={{ fontSize: 10, fill: ct.tick }} />
                       <ReferenceLine y={95} stroke="#71717a" strokeDasharray="3 3" />
-                      <Tooltip {...tooltipStyle} formatter={(v) => [`${v}%`, 'SpO2']} />
+                      <Tooltip {...ct.tooltip} formatter={(v) => [`${v}%`, 'SpO2']} />
                       <Area type="monotone" dataKey="value" stroke="#22c55e" fill="url(#spo2Grad2)" strokeWidth={1.5} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>

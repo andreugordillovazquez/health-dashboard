@@ -5,9 +5,10 @@ import {
 } from 'recharts'
 import type { BodyRecord } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, tooltipStyle, chartMargin, COLORS, shortDate, Legend, AISummaryButton, TabHeader } from './ui'
+import { StatBox, chartMargin, COLORS, shortDate, Legend, AISummaryButton, TabHeader, useChartTheme } from './ui'
 
 export default function BodyComposition({ bodyRecords, cutoffDate, granularity: _granularity }: { bodyRecords: BodyRecord[]; cutoffDate: string; granularity: Granularity }) {
+  const ct = useChartTheme()
   const filtered = useMemo(() => {
     if (!cutoffDate) return bodyRecords
     return bodyRecords.filter(r => r.date >= cutoffDate)
@@ -139,11 +140,11 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                     <stop offset="95%" stopColor={COLORS.orange} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                 <Tooltip
-                  {...tooltipStyle}
+                  {...ct.tooltip}
                   formatter={(value, name) => {
                     const label = name === 'weight' ? 'Weight' : name === 'leanMass' ? 'Lean Mass' : 'Fat Mass'
                     return [`${value} kg`, label]
@@ -182,10 +183,10 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                       <stop offset="95%" stopColor={COLORS.orange} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <Tooltip {...tooltipStyle} formatter={(v) => [`${v} kg`, 'Weight']} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} kg`, 'Weight']} />
                   <Area type="monotone" dataKey="weight" stroke={COLORS.orange} fill="url(#weightStandaloneGrad)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
                 </AreaChart>
               </ResponsiveContainer>
@@ -209,10 +210,10 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                       <stop offset="95%" stopColor={COLORS.red} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <Tooltip {...tooltipStyle} formatter={(v) => [`${v}%`, 'Body Fat']} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v}%`, 'Body Fat']} />
                   <Area type="monotone" dataKey="bodyFat" stroke={COLORS.red} fill="url(#bodyFatGrad)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
                 </AreaChart>
               </ResponsiveContainer>
@@ -236,12 +237,12 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                       <stop offset="95%" stopColor={COLORS.purple} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <Tooltip {...tooltipStyle} formatter={(v) => [`${v}`, 'BMI']} />
-                  <ReferenceLine y={18.5} stroke="#71717a" strokeDasharray="3 3" label={{ value: '18.5', position: 'left', fill: '#71717a', fontSize: 10 }} />
-                  <ReferenceLine y={25} stroke="#71717a" strokeDasharray="3 3" label={{ value: '25', position: 'left', fill: '#71717a', fontSize: 10 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v}`, 'BMI']} />
+                  <ReferenceLine y={18.5} stroke="#71717a" strokeDasharray="3 3" label={{ value: '18.5', position: 'left', fill: ct.tick, fontSize: 10 }} />
+                  <ReferenceLine y={25} stroke="#71717a" strokeDasharray="3 3" label={{ value: '25', position: 'left', fill: ct.tick, fontSize: 10 }} />
                   <Area type="monotone" dataKey="bmi" stroke={COLORS.purple} fill="url(#bmiGrad)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
                 </AreaChart>
               </ResponsiveContainer>
@@ -265,10 +266,10 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                       <stop offset="95%" stopColor={COLORS.green} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDate} />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-                  <Tooltip {...tooltipStyle} formatter={(v) => [`${v} kg`, 'Lean Mass']} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} kg`, 'Lean Mass']} />
                   <Area type="monotone" dataKey="leanMass" stroke={COLORS.green} fill="url(#leanMassGrad)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
                 </AreaChart>
               </ResponsiveContainer>

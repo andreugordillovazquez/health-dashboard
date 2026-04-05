@@ -4,7 +4,7 @@ import {
   ScatterChart, Scatter, ZAxis, ReferenceLine, Cell,
 } from 'recharts'
 import type { MenstrualRecord, WristTempRecord } from './types'
-import { StatBox, ChartCard, AISummaryButton, tooltipStyle, chartMargin, COLORS, shortDateCompact, fmt, TabHeader } from './ui'
+import { StatBox, ChartCard, AISummaryButton, chartMargin, COLORS, shortDateCompact, fmt, TabHeader, useChartTheme } from './ui'
 
 const CYCLE_COLORS = {
   flow: '#ef4444',
@@ -180,6 +180,8 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
     })
   }, [cycles])
 
+  const ct = useChartTheme()
+
   const hasData = filtered.length > 0
 
   if (!hasData) {
@@ -262,11 +264,11 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
                 <stop offset="95%" stopColor={COLORS.purple} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
-            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
-            <ReferenceLine y={28} stroke="#71717a" strokeDasharray="3 3" label={{ value: '28d', position: 'right', fill: '#71717a', fontSize: 10 }} />
-            <Tooltip {...tooltipStyle} formatter={(v) => [`${v} days`, 'Cycle Length']} />
+            <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} />
+            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+            <ReferenceLine y={28} stroke="#71717a" strokeDasharray="3 3" label={{ value: '28d', position: 'right', fill: ct.tick, fontSize: 10 }} />
+            <Tooltip {...ct.tooltip} formatter={(v) => [`${v} days`, 'Cycle Length']} />
             <Area type="monotone" dataKey="length" stroke={COLORS.purple} fill="url(#cycleLenGrad)" strokeWidth={1.5} dot={{ r: 3, fill: COLORS.purple }} />
           </AreaChart>
         </ChartCard>
@@ -277,10 +279,10 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
         {periodDurationData.length > 1 && (
           <ChartCard title="Period Duration" description="Number of flow days per cycle" chartData={periodDurationData}>
             <BarChart margin={chartMargin} data={periodDurationData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
-              <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
-              <Tooltip {...tooltipStyle} formatter={(v) => [`${v} days`, 'Period']} />
+              <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} />
+              <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
+              <Tooltip {...ct.tooltip} formatter={(v) => [`${v} days`, 'Period']} />
               <Bar dataKey="days" fill={CYCLE_COLORS.flow} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ChartCard>
@@ -290,10 +292,10 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
         {flowDistribution.length > 0 && (
           <ChartCard title="Flow Intensity Distribution" description="Days by flow level across all tracked data" chartData={flowDistribution}>
             <BarChart margin={chartMargin} data={flowDistribution}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#71717a' }} />
-              <YAxis tick={{ fontSize: 10, fill: '#71717a' }} />
-              <Tooltip {...tooltipStyle} formatter={(v) => [`${v} days`, 'Count']} />
+              <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: ct.tick }} />
+              <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
+              <Tooltip {...ct.tooltip} formatter={(v) => [`${v} days`, 'Count']} />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {flowDistribution.map((entry, i) => {
                   const colorMap: Record<string, string> = {
@@ -328,11 +330,11 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <ScatterChart margin={chartMargin}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
-                <YAxis dataKey="temp" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#71717a' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} />
+                <YAxis dataKey="temp" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                 <ZAxis range={[15, 25]} />
-                <Tooltip {...tooltipStyle} formatter={(v) => [`${v}°C`, 'Temperature']} />
+                <Tooltip {...ct.tooltip} formatter={(v) => [`${v}°C`, 'Temperature']} />
                 <Scatter data={bbtData} fill={COLORS.orange} opacity={0.6} />
               </ScatterChart>
             </ResponsiveContainer>
@@ -353,18 +355,18 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
               <ScatterChart margin={chartMargin}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#71717a' }} tickFormatter={shortDateCompact} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} />
                 <YAxis
                   dataKey="intensity"
                   domain={[0, 3.5]}
                   ticks={[1, 2, 3]}
                   tickFormatter={(v) => ['', 'Light', 'Medium', 'Heavy'][v] || ''}
-                  tick={{ fontSize: 10, fill: '#71717a' }}
+                  tick={{ fontSize: 10, fill: ct.tick }}
                 />
                 <ZAxis range={[30, 50]} />
                 <Tooltip
-                  {...tooltipStyle}
+                  {...ct.tooltip}
                   formatter={(_v, _name, props) => {
                     const flow = props.payload?.flow || ''
                     return [flow.charAt(0).toUpperCase() + flow.slice(1), 'Flow']
