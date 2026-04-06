@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import type { GpxPoint } from './types'
 import 'leaflet/dist/leaflet.css'
-import { chartMargin, AISummaryButton, TabHeader, useChartTheme } from './ui'
+import { chartMargin, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
 
 interface ParsedRoute {
   filename: string
@@ -326,10 +326,7 @@ export default function RouteComparison({ gpxFiles }: { gpxFiles: Map<string, Fi
                       tickFormatter={v => formatPace(v)}
                       reversed
                     />
-                    <Tooltip
-                      {...ct.tooltip}
-                      formatter={(v) => [formatPace(v as number) + ' /km', 'Pace']}
-                    />
+                    <Tooltip content={<ChartTooltip formatter={(v) => [formatPace(v as number) + ' /km', 'Pace']} />} />
                     <Area type="monotone" dataKey="pace" stroke="#3b82f6" fill="url(#paceGrad)" strokeWidth={2} dot={{ r: 3 }} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -351,7 +348,7 @@ export default function RouteComparison({ gpxFiles }: { gpxFiles: Map<string, Fi
                     <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                     <XAxis dataKey="label" tick={{ fontSize: 10, fill: ct.tick }} />
                     <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
-                    <Tooltip {...ct.tooltip} formatter={(v) => [`${v} km/h`, 'Speed']} />
+                    <Tooltip content={<ChartTooltip formatter={(v) => [`${v} km/h`, 'Speed']} />} />
                     <Bar dataKey="speed" radius={[4, 4, 0, 0]}>
                       {paceData.map((d, i) => (
                         <rect key={i} fill={d.color} />

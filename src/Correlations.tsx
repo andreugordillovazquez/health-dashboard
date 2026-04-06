@@ -4,7 +4,7 @@ import {
   CartesianGrid, ZAxis, AreaChart, Area,
 } from 'recharts'
 import type { DailyMetrics, SleepRecord, CaffeineRecord, DailyBreathing, CardioRecord } from './types'
-import { AISummaryButton, shortDateCompact, TabHeader, useChartTheme } from './ui'
+import { AISummaryButton, ChartTooltip, shortDateCompact, TabHeader, useChartTheme } from './ui'
 
 interface CorrelationResult {
   label: string
@@ -125,7 +125,7 @@ function CorrelationCard({ result, chart }: { result: CorrelationResult; chart?:
               <XAxis dataKey={chart.xKey} name={chart.xName} unit={chart.xUnit} tick={{ fontSize: 10, fill: ct.tick }} />
               <YAxis dataKey={chart.yKey} name={chart.yName} unit={chart.yUnit} domain={chart.yDomain || ['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
               <ZAxis range={chart.zRange || [20, 40]} />
-              <Tooltip {...ct.tooltip} />
+              <Tooltip content={<ChartTooltip />} />
               <Scatter data={chart.data as Record<string, unknown>[]} fill={chart.color} opacity={0.5} />
             </ScatterChart>
           </ResponsiveContainer>
@@ -490,7 +490,7 @@ export default function Correlations({ metrics, sleepRecords, caffeineRecords, d
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} />
                 <YAxis domain={[-1, 1]} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip {...ct.tooltip} formatter={(v) => [`r = ${v}`, 'Correlation']} />
+                <Tooltip content={<ChartTooltip formatter={(v) => [`r = ${v}`, 'Correlation']} />} />
                 <Area type="monotone" dataKey="r" stroke="#8b5cf6" fill="url(#rollingCorrGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>

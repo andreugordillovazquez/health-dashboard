@@ -4,7 +4,7 @@ import {
   CartesianGrid, BarChart, Bar, ReferenceLine,
 } from 'recharts'
 import type { Granularity } from './analysis'
-import { StatBox, AISummaryButton, TabHeader, useChartTheme, COLORS, shortDate, avg } from './ui'
+import { StatBox, AISummaryButton, TabHeader, ChartTooltip, useChartTheme, COLORS, shortDate, avg } from './ui'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -138,7 +138,7 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
                 <ReferenceLine y={30} stroke="#71717a" strokeDasharray="3 3" label={{ value: '30 min goal', position: 'right', fill: ct.tick, fontSize: 10 }} />
-                <Tooltip {...ct.tooltip} formatter={(v) => [`${v} min`, 'Daylight']} />
+                <Tooltip content={<ChartTooltip formatter={(v) => [`${v} min`, 'Daylight']} />} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.yellow} fill="url(#daylightGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -164,7 +164,7 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
                   <XAxis dataKey="month" tick={{ fontSize: 10, fill: ct.tick }} />
                   <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={30} stroke="#71717a" strokeDasharray="3 3" />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} min/day`, 'Avg Daylight']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} min/day`, 'Avg Daylight']} />} />
                   <Bar dataKey="avg" fill={COLORS.yellow} radius={[4, 4, 0, 0]} opacity={0.8} />
                 </BarChart>
               </ResponsiveContainer>
@@ -196,10 +196,7 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
                   />
                   <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={30} stroke="#71717a" strokeDasharray="3 3" />
-                  <Tooltip
-                    {...ct.tooltip}
-                    formatter={(v) => [`${v} min/day`, 'Avg Daylight']}
-                  />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} min/day`, 'Avg Daylight']} />} />
                   <Bar dataKey="avg" fill={COLORS.yellow} radius={[4, 4, 0, 0]} opacity={0.7} />
                 </BarChart>
               </ResponsiveContainer>

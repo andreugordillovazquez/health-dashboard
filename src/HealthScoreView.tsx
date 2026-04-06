@@ -4,7 +4,7 @@ import {
   CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, Radar,
 } from 'recharts'
 import type { HealthData } from './types'
-import { chartMargin, COLORS, shortDate, AISummaryButton, TabHeader, useChartTheme } from './ui'
+import { chartMargin, COLORS, shortDate, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
 import { computeHealthScores, rollingAvg, scoreLabel } from './healthScore'
 
 function ScoreRing({ score, size = 160, label }: { score: number; size?: number; label: string }) {
@@ -152,10 +152,7 @@ export default function HealthScoreView({ data, cutoffDate }: Props) {
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip
-                  {...ct.tooltip}
-                  formatter={(v, name) => [`${v}`, name === 'total' ? 'Total' : String(name)]}
-                />
+                <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v}`, name === 'total' ? 'Total' : String(name)]} />} />
                 <Area type="monotone" dataKey="total" stroke={COLORS.green} fill="url(#scoreGrad)" strokeWidth={2} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -191,7 +188,7 @@ export default function HealthScoreView({ data, cutoffDate }: Props) {
                     <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                     <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: ct.tick }} />
-                    <Tooltip {...ct.tooltip} formatter={(v) => [`${v}`, label]} />
+                    <Tooltip content={<ChartTooltip formatter={(v) => [`${v}`, label]} />} />
                     <Area type="monotone" dataKey={key} stroke={color} fill={`url(#${key}ScoreGrad)`} strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>

@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import type { GpxRoute, GpxPoint, Workout, HRSample } from './types'
 import 'leaflet/dist/leaflet.css'
-import { StatBox, AISummaryButton, TabHeader, useChartTheme } from './ui'
+import { StatBox, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
 
 interface Props {
   workouts: Workout[]
@@ -191,14 +191,10 @@ function RouteDetail({ route }: { route: GpxRoute }) {
                 />
                 <YAxis yAxisId="ele" tick={{ fontSize: 10, fill: ct.tick }} domain={['auto', 'auto']} />
                 <YAxis yAxisId="speed" orientation="right" tick={{ fontSize: 10, fill: ct.tick }} domain={[0, 'auto']} />
-                <Tooltip
-                  {...ct.tooltip}
-                  formatter={(value, name) => [
+                <Tooltip content={<ChartTooltip formatter={(value, name) => [
                     name === 'ele' ? `${value} m` : `${value} km/h`,
                     name === 'ele' ? 'Elevation' : 'Speed',
-                  ]}
-                  labelFormatter={v => `${v} km`}
-                />
+                  ]} />} />
                 <Area yAxisId="ele" type="monotone" dataKey="ele" stroke="#22c55e" fill="url(#eleGrad)" strokeWidth={1.5} dot={false} />
                 <Area yAxisId="speed" type="monotone" dataKey="speed" stroke="#3b82f6" fill="none" strokeWidth={1} dot={false} strokeOpacity={0.5} />
               </AreaChart>
@@ -526,11 +522,7 @@ export default function TrainingViewer({ workouts, gpxFiles, hrTimeline, dob }: 
                         tickFormatter={v => `${Math.floor(v as number)}m`}
                       />
                       <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                      <Tooltip
-                        {...ct.tooltip}
-                        formatter={(v) => [`${v} bpm`, 'Heart Rate']}
-                        labelFormatter={v => `${Math.floor(v as number)}m ${Math.round(((v as number) % 1) * 60)}s`}
-                      />
+                      <Tooltip content={<ChartTooltip formatter={(v) => [`${v} bpm`, 'Heart Rate']} />} />
                       <Area type="monotone" dataKey="bpm" stroke="#ef4444" fill="url(#sessionHrGrad)" strokeWidth={1.5} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>

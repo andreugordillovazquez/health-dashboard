@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import type { SleepRecord, DailySleep, WristTempRecord, DailyBreathing } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, chartMargin, COLORS, shortDate, avg, Legend, AISummaryButton, TabHeader, useChartTheme } from './ui'
+import { StatBox, chartMargin, COLORS, shortDate, avg, Legend, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
 
 const SLEEP_COLORS = { core: '#6366f1', deep: COLORS.purple, rem: COLORS.cyan, awake: COLORS.orange, temp: COLORS.red }
 
@@ -415,10 +415,10 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
                 <ReferenceLine y={0} stroke="#71717a" strokeDasharray="3 3" />
-                <Tooltip {...ct.tooltip} formatter={(v, name) => [
+                <Tooltip content={<ChartTooltip formatter={(v, name) => [
                   name === 'debt' ? `${v}h` : `${(v as number) > 0 ? '+' : ''}${v}h`,
                   name === 'debt' ? 'Cumulative Debt' : 'Nightly Δ'
-                ]} />
+                ]} />} />
                 <Area type="monotone" dataKey="debt" stroke={currentDebt !== null && currentDebt >= 0 ? '#22c55e' : '#ef4444'} fill={currentDebt !== null && currentDebt >= 0 ? 'url(#debtPosGrad)' : 'url(#debtNegGrad)'} strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="nightly" stroke={COLORS.cyan} strokeWidth={1} dot={false} strokeOpacity={0.4} />
               </ComposedChart>
@@ -450,10 +450,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip
-                  {...ct.tooltip}
-                  formatter={(value, name) => [`${value}h`, name === 'core' ? 'Core' : name === 'deep' ? 'Deep' : name === 'rem' ? 'REM' : 'Awake']}
-                />
+                <Tooltip content={<ChartTooltip formatter={(value, name) => [`${value}h`, name === 'core' ? 'Core' : name === 'deep' ? 'Deep' : name === 'rem' ? 'REM' : 'Awake']} />} />
                 <Bar dataKey="deep" stackId="sleep" fill={SLEEP_COLORS.deep} radius={[0, 0, 0, 0]} />
                 <Bar dataKey="rem" stackId="sleep" fill={SLEEP_COLORS.rem} />
                 <Bar dataKey="core" stackId="sleep" fill={SLEEP_COLORS.core} radius={[4, 4, 0, 0]} />
@@ -502,10 +499,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                     tick={{ fontSize: 10, fill: ct.tick }}
                     tickFormatter={v => minutesToTime(v > 1440 ? v - 1440 : v)}
                   />
-                  <Tooltip
-                    {...ct.tooltip}
-                    formatter={(v, name) => [minutesToTime((v as number) > 1440 ? (v as number) - 1440 : (v as number)), name === 'bedtime' ? 'Bedtime' : 'Wake time']}
-                  />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [minutesToTime((v as number) > 1440 ? (v as number) - 1440 : (v as number)), name === 'bedtime' ? 'Bedtime' : 'Wake time']} />} />
                   <Area type="monotone" dataKey="bedtime" stroke={SLEEP_COLORS.deep} fill="url(#bedtimeGrad)" strokeWidth={1.5} dot={false} connectNulls />
                   <Area type="monotone" dataKey="wake" stroke="#f97316" fill="url(#wakeGrad)" strokeWidth={1.5} dot={false} connectNulls />
                 </AreaChart>
@@ -539,7 +533,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v}h`, 'Total Sleep']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v}h`, 'Total Sleep']} />} />
                   <Area type="monotone" dataKey="total" stroke="#6366f1" fill="url(#sleepTotalGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -573,15 +567,12 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                     reversed
                   />
                   <ZAxis dataKey="total" range={[20, 80]} />
-                  <Tooltip
-                    {...ct.tooltip}
-                    formatter={(value, name) => {
+                  <Tooltip content={<ChartTooltip formatter={(value, name) => {
                       if (typeof value !== 'number') return [`${value}`, String(name)]
                       if (name === 'bedtime') return [minutesToTime(value > 1440 ? value - 1440 : value), 'Bedtime']
                       if (name === 'total') return [`${value.toFixed(1)}h`, 'Total']
                       return [`${value}`, String(name)]
-                    }}
-                  />
+                    }} />} />
                   <Scatter
                     data={dailySleep.filter(d => d.bedtime).map(d => {
                       let bedMins = timeToMinutes(d.bedtime)
@@ -622,13 +613,10 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={v => `${v > 0 ? '+' : ''}${v}°`} />
                   <ReferenceLine y={0} stroke="#71717a" strokeDasharray="3 3" />
-                  <Tooltip
-                    {...ct.tooltip}
-                    formatter={(v, name) => {
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => {
                       if (name === 'deviation') return [`${(v as number) > 0 ? '+' : ''}${v}°C`, 'Deviation']
                       return [`${v}°C`, 'Temperature']
-                    }}
-                  />
+                    }} />} />
                   <Area type="monotone" dataKey="deviation" stroke={SLEEP_COLORS.temp} fill="url(#tempGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -669,7 +657,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                     <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                     <ReferenceLine y={5} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Mild', position: 'right', fill: ct.tick, fontSize: 10 }} />
                     <ReferenceLine y={15} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Moderate', position: 'right', fill: ct.tick, fontSize: 10 }} />
-                    <Tooltip {...ct.tooltip} formatter={(v) => [`${v}/hr`, 'Disturbances']} />
+                    <Tooltip content={<ChartTooltip formatter={(v) => [`${v}/hr`, 'Disturbances']} />} />
                     <Area type="monotone" dataKey="value" stroke="#ef4444" fill="url(#distGrad2)" strokeWidth={1.5} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -702,7 +690,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                       <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                       <ReferenceLine y={12} stroke="#71717a" strokeDasharray="3 3" />
                       <ReferenceLine y={20} stroke="#71717a" strokeDasharray="3 3" />
-                      <Tooltip {...ct.tooltip} formatter={(v) => [`${v} br/min`, 'Respiratory Rate']} />
+                      <Tooltip content={<ChartTooltip formatter={(v) => [`${v} br/min`, 'Respiratory Rate']} />} />
                       <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#sleepRespRateGrad)" strokeWidth={1.5} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -733,7 +721,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                       <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                       <YAxis domain={['auto', 100]} tick={{ fontSize: 10, fill: ct.tick }} />
                       <ReferenceLine y={95} stroke="#71717a" strokeDasharray="3 3" />
-                      <Tooltip {...ct.tooltip} formatter={(v) => [`${v}%`, 'SpO2']} />
+                      <Tooltip content={<ChartTooltip formatter={(v) => [`${v}%`, 'SpO2']} />} />
                       <Area type="monotone" dataKey="value" stroke="#22c55e" fill="url(#spo2Grad2)" strokeWidth={1.5} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>

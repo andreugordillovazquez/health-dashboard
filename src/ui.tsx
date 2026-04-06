@@ -61,26 +61,123 @@ export function useChartTheme() {
 
 export const chartMargin = { top: 5, right: 5, bottom: 0, left: -15 }
 
+// === Custom Tooltip ===
+interface TooltipPayloadItem {
+  name: string
+  value: number
+  color: string
+  dataKey: string
+  payload: Record<string, unknown>
+}
+
+export function ChartTooltip({ active, payload, label, formatter }: {
+  active?: boolean
+  payload?: TooltipPayloadItem[]
+  label?: string
+  formatter?: (value: number, name: string) => [string, string]
+}) {
+  if (!active || !payload || payload.length === 0) return null
+  const dark = isDarkMode()
+
+  // Format the date label nicely
+  let dateLabel = label || ''
+  if (dateLabel && dateLabel.match(/^\d{4}-\d{2}/)) {
+    const parts = dateLabel.split('-')
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    dateLabel = parts[2]
+      ? `${months[parseInt(parts[1]) - 1]} ${parseInt(parts[2])}, ${parts[0]}`
+      : `${months[parseInt(parts[1]) - 1]} ${parts[0]}`
+  }
+
+  return (
+    <div style={{
+      background: dark ? '#101014' : '#ffffff',
+      border: `1px solid ${dark ? '#27272a' : '#e4e4e7'}`,
+      borderRadius: 10,
+      padding: '8px 12px',
+      fontSize: 12,
+      boxShadow: dark ? '0 4px 12px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.1)',
+    }}>
+      {dateLabel && (
+        <div style={{ color: dark ? '#71717a' : '#a1a1aa', fontSize: 10, marginBottom: 4, fontWeight: 500 }}>
+          {dateLabel}
+        </div>
+      )}
+      {payload.map((entry, i) => {
+        const [formattedValue, formattedName] = formatter
+          ? formatter(entry.value, entry.name || entry.dataKey)
+          : [`${entry.value}`, entry.name || entry.dataKey]
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: i > 0 ? 3 : 0 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color, flexShrink: 0 }} />
+            <span style={{ color: dark ? '#a1a1aa' : '#71717a' }}>{formattedName}</span>
+            <span style={{ color: dark ? '#e4e4e7' : '#18181b', fontWeight: 600, marginLeft: 'auto', paddingLeft: 8 }}>{formattedValue}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// === Sparkline ===
+function Sparkline({ data, color, height = 24 }: { data: number[]; color?: string; height?: number }) {
+  if (data.length < 2) return null
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min || 1
+  const w = 80
+  const h = height
+  const pad = 2
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w
+    const y = pad + (1 - (v - min) / range) * (h - pad * 2)
+    return `${x},${y}`
+  }).join(' ')
+  const c = color || '#71717a'
+  // Fill area
+  const fillPoints = `0,${h} ${points} ${w},${h}`
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
+      <polygon points={fillPoints} fill={c} fillOpacity={0.1} />
+      <polyline points={points} fill="none" stroke={c} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      {/* End dot */}
+      {data.length > 0 && (() => {
+        const lastX = w
+        const lastY = pad + (1 - (data[data.length - 1] - min) / range) * (h - pad * 2)
+        return <circle cx={lastX} cy={lastY} r={2} fill={c} />
+      })()}
+    </svg>
+  )
+}
+
 // === Shared components ===
-export function StatBox({ label, value, unit, sub, color, trend }: {
+export function StatBox({ label, value, unit, sub, color, trend, sparkData }: {
   label: string; value: string; unit?: string; sub?: string; color?: string
   trend?: { direction: 'up' | 'down'; positive: boolean; changePercent: number }
+  sparkData?: number[]
 }) {
   return (
     <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
       <div className="text-zinc-500 text-xs mb-1">{label}</div>
-      <div className="text-2xl font-semibold tracking-tight">
-        <span style={{ color }}>{value}</span>
-        {unit && <span className="text-sm text-zinc-500 ml-1">{unit}</span>}
-      </div>
-      {trend ? (
-        <div className={`text-xs mt-1 font-medium tabular-nums ${trend.positive ? 'text-green-400' : 'text-red-400'}`}>
-          {trend.direction === 'up' ? '+' : '−'}{trend.changePercent}%
-          <span className="text-zinc-600 font-normal ml-1">30d</span>
+      <div className="flex items-end justify-between gap-2">
+        <div>
+          <div className="text-2xl font-semibold tracking-tight">
+            <span style={{ color }}>{value}</span>
+            {unit && <span className="text-sm text-zinc-500 ml-1">{unit}</span>}
+          </div>
+          {trend ? (
+            <div className={`text-xs mt-1 font-medium tabular-nums ${trend.positive ? 'text-green-400' : 'text-red-400'}`}>
+              {trend.direction === 'up' ? '+' : '−'}{trend.changePercent}%
+              <span className="text-zinc-600 font-normal ml-1">30d</span>
+            </div>
+          ) : (
+            sub && <div className="text-zinc-500 text-xs mt-1">{sub}</div>
+          )}
         </div>
-      ) : (
-        sub && <div className="text-zinc-500 text-xs mt-1">{sub}</div>
-      )}
+        {sparkData && sparkData.length >= 3 && (
+          <Sparkline data={sparkData} color={color || (trend?.positive ? '#22c55e' : trend ? '#ef4444' : undefined)} />
+        )}
+      </div>
     </div>
   )
 }
@@ -109,10 +206,10 @@ function sampleData(data: unknown[], maxPoints = 60): unknown[] {
 
 async function fetchAISummary(title: string, description: string | undefined, data: unknown[], apiKey: string): Promise<string> {
   const sampled = sampleData(data)
-  const prompt = `You are a health data analyst. Analyze this chart data and provide a brief, insightful summary (3-5 sentences). Focus on trends, notable patterns, and health implications. Be specific with numbers.
+  const prompt = `You're a friendly health coach talking directly to the user about their personal health data. Speak in second person ("your", "you've", "you're"). Be warm, specific with numbers, and actionable. Keep it to 3-5 sentences. Highlight what's going well, flag anything worth watching, and suggest one concrete thing they could do.
 
 Chart: "${title}"${description ? `\nDescription: ${description}` : ''}
-Data (${data.length} points${data.length > 60 ? ', sampled' : ''}):
+Their data (${data.length} points${data.length > 60 ? ', sampled' : ''}):
 ${JSON.stringify(sampled, null, 0)}`
 
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {

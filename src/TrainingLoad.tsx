@@ -4,7 +4,7 @@ import {
   ComposedChart, Area, Line, ReferenceArea, ReferenceLine,
 } from 'recharts'
 import type { Workout } from './types'
-import { chartMargin, COLORS, shortDate, StatBox, Legend, AISummaryButton, TabHeader, fmt, useChartTheme } from './ui'
+import { chartMargin, COLORS, shortDate, StatBox, Legend, AISummaryButton, TabHeader, fmt, useChartTheme, ChartTooltip } from './ui'
 
 // Simplified TRIMP (Training Impulse) calculation
 // Uses duration * HR intensity factor. When HR is missing, fall back to calories-based estimate.
@@ -200,15 +200,12 @@ export default function TrainingLoad({ workouts, cutoffDate }: Props) {
               {/* Optimal TSB zone */}
               <ReferenceArea y1={-10} y2={15} fill="#22c55e" fillOpacity={0.03} />
               <ReferenceLine y={0} stroke="#71717a" strokeDasharray="3 3" />
-              <Tooltip
-                {...ct.tooltip}
-                formatter={(v, name) => {
+              <Tooltip content={<ChartTooltip formatter={(v, name) => {
                   if (name === 'ctl') return [`${v}`, 'Fitness (CTL)']
                   if (name === 'atl') return [`${v}`, 'Fatigue (ATL)']
                   if (name === 'tsb') return [`${v}`, 'Form (TSB)']
                   return [`${v}`, 'TRIMP']
-                }}
-              />
+                }} />} />
               <Area type="monotone" dataKey="tsb" stroke="#22c55e" fill="url(#tsbPosGrad)" strokeWidth={1} dot={false} />
               <Line type="monotone" dataKey="ctl" stroke={COLORS.blue} strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="atl" stroke={COLORS.red} strokeWidth={1.5} dot={false} />
@@ -248,7 +245,7 @@ export default function TrainingLoad({ workouts, cutoffDate }: Props) {
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip {...ct.tooltip} formatter={(v, name) => [name === 'trimp' ? `${v} TRIMP` : `${v} sessions`, name === 'trimp' ? 'Load' : 'Workouts']} />
+                <Tooltip content={<ChartTooltip formatter={(v, name) => [name === 'trimp' ? `${v} TRIMP` : `${v} sessions`, name === 'trimp' ? 'Load' : 'Workouts']} />} />
                 <Area type="monotone" dataKey="trimp" stroke={COLORS.orange} fill="url(#weeklyTrimpGrad)" strokeWidth={1.5} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>

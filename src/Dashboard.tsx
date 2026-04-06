@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { computeTrends, computeExtraTrends, groupedAverage, workoutSummary, monthlyWorkouts } from './analysis'
 import type { ExtraTrendInput } from './analysis'
-import { COLORS, chartMargin, StatBox, ChartCard, SectionHeader, TabHeader, shortDateCompact, shortMonth, fmt, humanizeWorkoutType, useChartTheme } from './ui'
+import { COLORS, chartMargin, StatBox, ChartCard, SectionHeader, TabHeader, ChartTooltip, shortDateCompact, shortMonth, fmt, humanizeWorkoutType, useChartTheme } from './ui'
 
 const TrainingViewer = lazy(() => import('./TrainingViewer'))
 const SleepAnalysis = lazy(() => import('./SleepAnalysis'))
@@ -212,6 +212,9 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
   const latestWeight = findLatest(allMetrics, 'weight')
   const latestVO2 = findLatest(allMetrics, 'vo2max')
   const totalWorkouts = data.workouts.length
+
+  // Spark data for overview stat boxes
+  const sparkFor = (key: keyof DailyMetrics) => recent30.map(m => m[key] as number).filter(v => v !== null && v > 0)
 
   // Highlights for overview
   const highlights = useMemo(() => {
@@ -564,13 +567,13 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
         <TabHeader title="Overview" description="Your health at a glance — key metrics, recent highlights, and trends from the last 30 days." />
         <SectionHeader>At a Glance</SectionHeader>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-3">
-          <StatBox label="Steps" value={fmt(avgSteps)} unit="/day" trend={trendFor('Steps')} sub="30d avg" />
-          <StatBox label="Sleep" value={fmt(avgSleep, 1)} unit="hrs" trend={trendFor('Sleep')} sub="30d avg" />
-          <StatBox label="Resting HR" value={fmt(avgHR, 0)} unit="bpm" trend={trendFor('Resting Heart Rate')} sub="30d avg" />
-          <StatBox label="HRV" value={fmt(avgHRV, 0)} unit="ms" trend={trendFor('Heart Rate Variability')} sub="30d avg" />
-          <StatBox label="Weight" value={fmt(latestWeight, 1)} unit="kg" trend={trendFor('Weight')} sub="Latest" />
-          <StatBox label="VO2 Max" value={fmt(latestVO2, 1)} unit="mL/kg/min" trend={trendFor('VO2 Max')} sub="Latest" />
-          <StatBox label="Distance" value={fmt(avgMetric(recent30, 'distance'), 1)} unit="km/day" trend={trendFor('Distance')} sub="30d avg" />
+          <StatBox label="Steps" value={fmt(avgSteps)} unit="/day" trend={trendFor('Steps')} sub="30d avg" color={COLORS.blue} sparkData={sparkFor('steps')} />
+          <StatBox label="Sleep" value={fmt(avgSleep, 1)} unit="hrs" trend={trendFor('Sleep')} sub="30d avg" color={COLORS.cyan} sparkData={sparkFor('sleepHours')} />
+          <StatBox label="Resting HR" value={fmt(avgHR, 0)} unit="bpm" trend={trendFor('Resting Heart Rate')} sub="30d avg" color={COLORS.red} sparkData={sparkFor('restingHeartRate')} />
+          <StatBox label="HRV" value={fmt(avgHRV, 0)} unit="ms" trend={trendFor('Heart Rate Variability')} sub="30d avg" color={COLORS.purple} sparkData={sparkFor('hrv')} />
+          <StatBox label="Weight" value={fmt(latestWeight, 1)} unit="kg" trend={trendFor('Weight')} sub="Latest" color={COLORS.orange} sparkData={sparkFor('weight')} />
+          <StatBox label="VO2 Max" value={fmt(latestVO2, 1)} unit="mL/kg/min" trend={trendFor('VO2 Max')} sub="Latest" color={COLORS.green} sparkData={sparkFor('vo2max')} />
+          <StatBox label="Distance" value={fmt(avgMetric(recent30, 'distance'), 1)} unit="km/day" trend={trendFor('Distance')} sub="30d avg" color={COLORS.green} sparkData={sparkFor('distance')} />
           <StatBox label="Workouts" value={`${totalWorkouts}`} unit="total" sub={`${workoutsByMonth.length > 0 ? workoutsByMonth[workoutsByMonth.length - 1]?.count || 0 : 0} this month`} />
         </div>
 
@@ -621,7 +624,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                   <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} />
+                  <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.blue} fill="url(#stepsGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ChartCard>
@@ -639,7 +642,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} />
+                  <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.cyan} fill="url(#sleepGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ChartCard>
@@ -657,7 +660,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} />
+                  <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.red} fill="url(#hrGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ChartCard>
@@ -675,7 +678,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} />
+                  <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.purple} fill="url(#hrvGrad2)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ChartCard>
@@ -696,7 +699,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                 <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip {...ct.tooltip} />
+                <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.green} fill="url(#distGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ChartCard>
@@ -714,7 +717,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} interval="preserveStartEnd" minTickGap={40} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip {...ct.tooltip} />
+                <Tooltip content={<ChartTooltip />} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.orange} fill="url(#weightGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ChartCard>
@@ -726,7 +729,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortMonth} interval="preserveStartEnd" minTickGap={40} />
                 <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip {...ct.tooltip} />
+                <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="count" fill={COLORS.pink} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ChartCard>

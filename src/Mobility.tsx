@@ -4,7 +4,7 @@ import {
   AreaChart, Area, ScatterChart, Scatter, ZAxis, ReferenceArea,
 } from 'recharts'
 import type { DailyMobility } from './types'
-import { StatBox, chartMargin, COLORS, shortDate, AISummaryButton, TabHeader, fmt, useChartTheme } from './ui'
+import { StatBox, chartMargin, ChartTooltip, COLORS, shortDate, AISummaryButton, TabHeader, fmt, useChartTheme } from './ui'
 
 interface Props {
   dailyMobility: DailyMobility[]
@@ -136,7 +136,7 @@ export default function Mobility({ dailyMobility, cutoffDate }: Props) {
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip {...ct.tooltip} formatter={(v) => [`${v} km/h`, 'Walking Speed']} />
+                <Tooltip content={<ChartTooltip formatter={(v) => [`${v} km/h`, 'Walking Speed']} />} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.blue} fill="url(#walkSpeedGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -167,7 +167,7 @@ export default function Mobility({ dailyMobility, cutoffDate }: Props) {
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} cm`, 'Step Length']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} cm`, 'Step Length']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.green} fill="url(#stepLenGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -198,7 +198,7 @@ export default function Mobility({ dailyMobility, cutoffDate }: Props) {
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceArea y1={20} y2={30} fill="#22c55e" fillOpacity={0.05} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v}%`, 'Double Support']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v}%`, 'Double Support']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.orange} fill="url(#dblSupportGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -229,7 +229,7 @@ export default function Mobility({ dailyMobility, cutoffDate }: Props) {
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceArea y1={0} y2={10} fill="#22c55e" fillOpacity={0.05} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v}%`, 'Asymmetry']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v}%`, 'Asymmetry']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.red} fill="url(#asymGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -259,7 +259,7 @@ export default function Mobility({ dailyMobility, cutoffDate }: Props) {
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} flights`, 'Flights']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} flights`, 'Flights']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.cyan} fill="url(#flightsGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -289,7 +289,7 @@ export default function Mobility({ dailyMobility, cutoffDate }: Props) {
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} formatter={(v, name) => [`${v} m/s`, name === 'ascent' ? 'Ascent' : 'Descent']} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} m/s`, name === 'ascent' ? 'Ascent' : 'Descent']} />} />
                   <Area type="monotone" dataKey="ascent" stroke={COLORS.green} fill="none" strokeWidth={1.5} dot={false} />
                   <Area type="monotone" dataKey="descent" stroke={COLORS.orange} fill="none" strokeWidth={1.5} dot={false} />
                 </AreaChart>
@@ -317,7 +317,7 @@ export default function Mobility({ dailyMobility, cutoffDate }: Props) {
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ZAxis range={[30, 50]} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v}%`, 'Steadiness']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v}%`, 'Steadiness']} />} />
                   <Scatter data={steadinessData} fill={COLORS.purple} opacity={0.7} />
                 </ScatterChart>
               </ResponsiveContainer>
@@ -343,7 +343,7 @@ export default function Mobility({ dailyMobility, cutoffDate }: Props) {
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ZAxis range={[40, 60]} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} m`, 'Distance']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} m`, 'Distance']} />} />
                   <Scatter data={sixMinData} fill={COLORS.green} opacity={0.7} />
                 </ScatterChart>
               </ResponsiveContainer>

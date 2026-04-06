@@ -4,7 +4,7 @@ import {
   AreaChart, Area, ReferenceArea, ComposedChart, Line,
 } from 'recharts'
 import type { RunningDynamicsRecord } from './types'
-import { StatBox, chartMargin, COLORS, shortDate, AISummaryButton, TabHeader, Legend, fmt, useChartTheme } from './ui'
+import { StatBox, chartMargin, COLORS, shortDate, AISummaryButton, TabHeader, Legend, fmt, useChartTheme, ChartTooltip } from './ui'
 
 interface Props {
   runningDynamics: RunningDynamicsRecord[]
@@ -129,7 +129,7 @@ export default function RunningDynamics({ runningDynamics, cutoffDate }: Props) 
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip {...ct.tooltip} formatter={(v) => [`${v} W`, 'Power']} />
+                <Tooltip content={<ChartTooltip formatter={(v) => [`${v} W`, 'Power']} />} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.orange} fill="url(#runPowerGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -160,7 +160,7 @@ export default function RunningDynamics({ runningDynamics, cutoffDate }: Props) 
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} m/s (${msToPace(v as number)}/km)`, 'Speed']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} m/s (${msToPace(v as number)}/km)`, 'Speed']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.blue} fill="url(#runSpeedGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -190,7 +190,7 @@ export default function RunningDynamics({ runningDynamics, cutoffDate }: Props) 
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} m`, 'Stride']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} m`, 'Stride']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.cyan} fill="url(#strideGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -221,7 +221,7 @@ export default function RunningDynamics({ runningDynamics, cutoffDate }: Props) 
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceArea y1={6} y2={8} fill="#22c55e" fillOpacity={0.05} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} cm`, 'Oscillation']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} cm`, 'Oscillation']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.purple} fill="url(#vertOscGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -252,7 +252,7 @@ export default function RunningDynamics({ runningDynamics, cutoffDate }: Props) 
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceArea y1={160} y2={200} fill="#22c55e" fillOpacity={0.05} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} ms`, 'GCT']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} ms`, 'GCT']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.green} fill="url(#gctGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -278,11 +278,11 @@ export default function RunningDynamics({ runningDynamics, cutoffDate }: Props) 
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis yAxisId="power" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                 <YAxis yAxisId="gct" orientation="right" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip {...ct.tooltip} formatter={(v, name) => {
+                <Tooltip content={<ChartTooltip formatter={(v, name) => {
                   if (name === 'power') return [`${v} W`, 'Power']
                   if (name === 'gct') return [`${v} ms`, 'Ground Contact']
                   return [`${v} cm`, 'Vert. Oscillation']
-                }} />
+                }} />} />
                 <Line yAxisId="power" type="monotone" dataKey="power" stroke={COLORS.orange} strokeWidth={2} dot={false} connectNulls />
                 <Line yAxisId="gct" type="monotone" dataKey="gct" stroke={COLORS.green} strokeWidth={1.5} dot={false} connectNulls />
                 <Line yAxisId="gct" type="monotone" dataKey="vertOsc" stroke={COLORS.purple} strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls />

@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import type { CardioRecord, DailyHR, DailyMetrics } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, chartMargin, COLORS, shortDate, Legend, AISummaryButton, TabHeader, useChartTheme } from './ui'
+import { StatBox, chartMargin, COLORS, shortDate, Legend, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
 
 // VO2 Max fitness age estimation (ACSM normative data for males)
 const VO2_AGE_TABLE = [
@@ -403,13 +403,10 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis yAxisId="vo2" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                 <YAxis yAxisId="age" orientation="right" reversed domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip
-                  {...ct.tooltip}
-                  formatter={(value, name) => {
+                <Tooltip content={<ChartTooltip formatter={(value, name) => {
                     if (name === 'value') return [`${value} mL/kg/min`, 'VO2 Max']
                     return [`${value} yrs`, 'Fitness Age']
-                  }}
-                />
+                  }} />} />
                 <ReferenceLine yAxisId="age" y={age} stroke="#71717a" strokeDasharray="3 3" label={{ value: `Age ${age}`, position: 'right', fill: ct.tick, fontSize: 10 }} />
                 <Area yAxisId="vo2" type="monotone" dataKey="value" stroke={COLORS.green} fill="url(#vo2Grad)" strokeWidth={2} dot={{ r: 2 }} />
                 <Line yAxisId="age" type="monotone" dataKey="fitnessAge" stroke={COLORS.purple} strokeWidth={1.5} strokeDasharray="4 4" dot={{ r: 1.5 }} />
@@ -453,13 +450,10 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <YAxis yAxisId="hrv" orientation="right" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                 {/* Reference band: normal resting HR */}
                 <ReferenceArea yAxisId="hr" y1={50} y2={70} fill="#22c55e" fillOpacity={0.05} />
-                <Tooltip
-                  {...ct.tooltip}
-                  formatter={(value, name) => {
+                <Tooltip content={<ChartTooltip formatter={(value, name) => {
                     if (name === 'restingHR') return [`${value} bpm`, 'Resting HR']
                     return [`${value} ms`, 'HRV']
-                  }}
-                />
+                  }} />} />
                 <Area yAxisId="hr" type="monotone" dataKey="restingHR" stroke={COLORS.red} fill="url(#restHRGrad2)" strokeWidth={1.5} dot={false} connectNulls />
                 <Area yAxisId="hrv" type="monotone" dataKey="hrv" stroke={COLORS.purple} fill="url(#hrvGrad2)" strokeWidth={1.5} dot={false} connectNulls />
               </ComposedChart>
@@ -499,7 +493,7 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} formatter={(v) => [`${v} bpm`, 'Walking HR']} />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} bpm`, 'Walking HR']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.orange} fill="url(#walkingHRGrad)" strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -528,7 +522,7 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                   <ReferenceLine y={12} stroke="#ef4444" strokeDasharray="3 3" strokeOpacity={0.3} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip {...ct.tooltip} formatter={(v, name) => [`${v} bpm`, name === 'trend' ? 'Trend' : 'Recovery']} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} bpm`, name === 'trend' ? 'Trend' : 'Recovery']} />} />
                   <Scatter dataKey="value" fill={COLORS.blue} opacity={0.6} />
                   <Line type="monotone" dataKey="trend" stroke={COLORS.cyan} strokeWidth={2} dot={false} />
                 </ComposedChart>
@@ -560,10 +554,7 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip
-                  {...ct.tooltip}
-                  formatter={(v, name) => [`${v} bpm`, name === 'max' ? 'Max HR' : name === 'min' ? 'Min HR' : 'Avg HR']}
-                />
+                <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} bpm`, name === 'max' ? 'Max HR' : name === 'min' ? 'Min HR' : 'Avg HR']} />} />
                 <Area type="monotone" dataKey="max" stroke="#ef4444" fill="url(#hrBandGrad)" strokeWidth={1} strokeOpacity={0.5} dot={false} />
                 <Area type="monotone" dataKey="min" stroke="#3b82f6" fill="#101014" strokeWidth={1} strokeOpacity={0.5} dot={false} />
                 <Line type="monotone" dataKey="avg" stroke="#f97316" strokeWidth={1.5} dot={false} />
@@ -600,7 +591,7 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip {...ct.tooltip} formatter={(v) => [`${v}x`, 'Efficiency Ratio']} />
+                <Tooltip content={<ChartTooltip formatter={(v) => [`${v}x`, 'Efficiency Ratio']} />} />
                 <ReferenceArea y1={1.4} y2={1.7} fill="#22c55e" fillOpacity={0.05} />
                 <Area type="monotone" dataKey="ratio" stroke={COLORS.cyan} fill="url(#effGrad)" strokeWidth={1.5} dot={false} />
               </AreaChart>

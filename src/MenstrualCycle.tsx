@@ -4,7 +4,7 @@ import {
   ScatterChart, Scatter, ZAxis, ReferenceLine, Cell,
 } from 'recharts'
 import type { MenstrualRecord, WristTempRecord } from './types'
-import { StatBox, ChartCard, AISummaryButton, chartMargin, COLORS, shortDateCompact, fmt, TabHeader, useChartTheme } from './ui'
+import { StatBox, ChartCard, AISummaryButton, ChartTooltip, chartMargin, COLORS, shortDateCompact, fmt, TabHeader, useChartTheme } from './ui'
 
 const CYCLE_COLORS = {
   flow: '#ef4444',
@@ -268,7 +268,7 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} />
             <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
             <ReferenceLine y={28} stroke="#71717a" strokeDasharray="3 3" label={{ value: '28d', position: 'right', fill: ct.tick, fontSize: 10 }} />
-            <Tooltip {...ct.tooltip} formatter={(v) => [`${v} days`, 'Cycle Length']} />
+            <Tooltip content={<ChartTooltip formatter={(v) => [`${v} days`, 'Cycle Length']} />} />
             <Area type="monotone" dataKey="length" stroke={COLORS.purple} fill="url(#cycleLenGrad)" strokeWidth={1.5} dot={{ r: 3, fill: COLORS.purple }} />
           </AreaChart>
         </ChartCard>
@@ -282,7 +282,7 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
               <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} />
               <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
-              <Tooltip {...ct.tooltip} formatter={(v) => [`${v} days`, 'Period']} />
+              <Tooltip content={<ChartTooltip formatter={(v) => [`${v} days`, 'Period']} />} />
               <Bar dataKey="days" fill={CYCLE_COLORS.flow} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ChartCard>
@@ -295,7 +295,7 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
               <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
               <XAxis dataKey="name" tick={{ fontSize: 10, fill: ct.tick }} />
               <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
-              <Tooltip {...ct.tooltip} formatter={(v) => [`${v} days`, 'Count']} />
+              <Tooltip content={<ChartTooltip formatter={(v) => [`${v} days`, 'Count']} />} />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {flowDistribution.map((entry, i) => {
                   const colorMap: Record<string, string> = {
@@ -334,7 +334,7 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDateCompact} />
                 <YAxis dataKey="temp" domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                 <ZAxis range={[15, 25]} />
-                <Tooltip {...ct.tooltip} formatter={(v) => [`${v}°C`, 'Temperature']} />
+                <Tooltip content={<ChartTooltip formatter={(v) => [`${v}°C`, 'Temperature']} />} />
                 <Scatter data={bbtData} fill={COLORS.orange} opacity={0.6} />
               </ScatterChart>
             </ResponsiveContainer>
@@ -366,11 +366,10 @@ export default function MenstrualCycle({ menstrualRecords, wristTempRecords, cut
                 />
                 <ZAxis range={[30, 50]} />
                 <Tooltip
-                  {...ct.tooltip}
-                  formatter={(_v, _name, props) => {
-                    const flow = props.payload?.flow || ''
-                    return [flow.charAt(0).toUpperCase() + flow.slice(1), 'Flow']
-                  }}
+                  content={<ChartTooltip formatter={(v) => {
+                    const label = v === 1 ? 'Light' : v === 2 ? 'Medium' : v === 3 ? 'Heavy' : 'Unspecified'
+                    return [label, 'Flow']
+                  }} />}
                 />
                 <Scatter data={flowTimeline} fill={CYCLE_COLORS.flow} opacity={0.7} />
               </ScatterChart>
