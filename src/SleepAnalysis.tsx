@@ -12,7 +12,6 @@ const SLEEP_COLORS = { core: '#6366f1', deep: COLORS.purple, rem: COLORS.cyan, a
 function buildDailySleep(records: SleepRecord[]): DailySleep[] {
   const byDate = new Map<string, SleepRecord[]>()
   for (const r of records) {
-    if (r.stage === 'inbed') continue
     const existing = byDate.get(r.date) || []
     existing.push(r)
     byDate.set(r.date, existing)
@@ -22,11 +21,16 @@ function buildDailySleep(records: SleepRecord[]): DailySleep[] {
   for (const [date, recs] of byDate) {
     let core = 0, deep = 0, rem = 0, awake = 0
     let earliest = '', latest = ''
+    let earliestInBed = ''
 
     // Check if granular stages exist — if so, ignore 'unspecified' to avoid double-counting
     const hasStages = recs.some(r => r.stage === 'core' || r.stage === 'deep' || r.stage === 'rem')
 
     for (const r of recs) {
+      if (r.stage === 'inbed') {
+        if (!earliestInBed || r.startDate < earliestInBed) earliestInBed = r.startDate
+        continue
+      }
       if (r.stage === 'awake') awake += r.minutes
       else if (r.stage === 'unspecified') {
         if (!hasStages) core += r.minutes // Only count if no granular data
@@ -42,12 +46,39 @@ function buildDailySleep(records: SleepRecord[]): DailySleep[] {
     const total = core + deep + rem
     if (total < 60) continue
 
+    // Sleep latency: minutes from bed → first asleep stage. Only meaningful if InBed was logged before sleep onset.
+    let latency: number | null = null
+    if (earliestInBed && earliest && earliestInBed < earliest) {
+      const mins = (new Date(earliest).getTime() - new Date(earliestInBed).getTime()) / 60000
+      if (mins >= 0 && mins < 180) latency = Math.round(mins)
+    }
+
+    // WASO: sum of 'awake' stage minutes whose records fall within [firstSleep, lastSleep]
+    let waso = 0
+    if (earliest && latest) {
+      for (const r of recs) {
+        if (r.stage !== 'awake') continue
+        if (r.startDate >= earliest && r.endDate <= latest) waso += r.minutes
+      }
+    }
+
+    // Midsleep: time-of-day midpoint between sleep onset and final wake
+    let midSleep: number | null = null
+    if (earliest && latest) {
+      const midMs = (new Date(earliest).getTime() + new Date(latest).getTime()) / 2
+      const md = new Date(midMs)
+      midSleep = md.getHours() * 60 + md.getMinutes()
+    }
+
     result.push({
       date,
       core: Math.round(core), deep: Math.round(deep), rem: Math.round(rem), awake: Math.round(awake),
       total: Math.round(total),
       bedtime: earliest ? formatTimeOfDay(earliest) : '',
       wakeTime: latest ? formatTimeOfDay(latest) : '',
+      latency,
+      waso: Math.round(waso),
+      midSleep,
     })
   }
   return result.sort((a, b) => a.date.localeCompare(b.date))
@@ -343,6 +374,90 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
     return Math.round(last7.reduce((s, d) => s + (d.total / 60 - TARGET_HOURS), 0) * 10) / 10
   }, [dailySleep])
 
+  // --- Deep-dive: consistency trend (rolling 14-day score) ---
+  const consistencyTrend = useMemo(() => {
+    const filteredDaily = cutoffDate ? dailySleep.filter(d => d.date >= cutoffDate) : dailySleep
+    if (filteredDaily.length < 14) return []
+    const out: { date: string; score: number }[] = []
+    for (let i = 13; i < filteredDaily.length; i++) {
+      const window = filteredDaily.slice(i - 13, i + 1)
+      const score = computeConsistencyScore(window)
+      if (score !== null) out.push({ date: filteredDaily[i].date, score })
+    }
+    return out
+  }, [dailySleep, cutoffDate])
+
+  // --- Deep-dive: latency ---
+  const latencyData = useMemo(() => {
+    const filteredDaily = cutoffDate ? dailySleep.filter(d => d.date >= cutoffDate) : dailySleep
+    return filteredDaily.filter(d => d.latency !== null).map(d => ({ date: d.date, value: d.latency! }))
+  }, [dailySleep, cutoffDate])
+
+  const recentLatency = latencyData.slice(-30)
+  const avgLatency = recentLatency.length > 0 ? Math.round(avg(recentLatency.map(d => d.value))) : null
+
+  // --- Deep-dive: WASO ---
+  const wasoData = useMemo(() => {
+    const filteredDaily = cutoffDate ? dailySleep.filter(d => d.date >= cutoffDate) : dailySleep
+    return filteredDaily.filter(d => d.waso > 0).map(d => ({ date: d.date, value: d.waso }))
+  }, [dailySleep, cutoffDate])
+
+  const recentWaso = wasoData.slice(-30)
+  const avgWaso = recentWaso.length > 0 ? Math.round(avg(recentWaso.map(d => d.value))) : null
+
+  // --- Deep-dive: chronotype drift (monthly midsleep mean) ---
+  const chronotypeData = useMemo(() => {
+    const filteredDaily = cutoffDate ? dailySleep.filter(d => d.date >= cutoffDate) : dailySleep
+    const byMonth = new Map<string, number[]>()
+    for (const d of filteredDaily) {
+      if (d.midSleep === null) continue
+      const month = d.date.substring(0, 7)
+      const arr = byMonth.get(month) || []
+      arr.push(d.midSleep)
+      byMonth.set(month, arr)
+    }
+    return Array.from(byMonth.entries())
+      .map(([month, vals]) => ({
+        month: month + '-01',
+        midSleep: Math.round(avg(vals)),
+        spread: Math.round(stdDev(vals)),
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+  }, [dailySleep, cutoffDate])
+
+  const recentMidSleep = dailySleep.slice(-30).filter(d => d.midSleep !== null).map(d => d.midSleep!)
+  const avgMidSleep = recentMidSleep.length > 0 ? Math.round(avg(recentMidSleep)) : null
+
+  // --- Deep-dive: respiratory rate anomalies (rolling 30-day baseline + 1 SD) ---
+  const respAnomalyData = useMemo(() => {
+    const data = filteredBreathing.filter(d => d.respiratoryRate !== null)
+      .map(d => ({ date: d.date, value: d.respiratoryRate! }))
+    if (data.length < 14) return { series: [] as Array<{ date: string; value: number; baseline: number | null; upper: number | null; lower: number | null; anomaly: number | null }>, anomalyCount: 0 }
+    let anomalyCount = 0
+    const series = data.map((d, i) => {
+      const start = Math.max(0, i - 29)
+      const window = data.slice(start, i).map(p => p.value) // baseline from PRIOR days only
+      if (window.length < 7) {
+        return { date: d.date, value: d.value, baseline: null, upper: null, lower: null, anomaly: null }
+      }
+      const mean = avg(window)
+      const sd = stdDev(window)
+      const upper = mean + sd
+      const lower = mean - sd
+      const isAnomaly = d.value > upper || d.value < lower
+      if (isAnomaly) anomalyCount++
+      return {
+        date: d.date,
+        value: Math.round(d.value * 10) / 10,
+        baseline: Math.round(mean * 10) / 10,
+        upper: Math.round(upper * 10) / 10,
+        lower: Math.round(lower * 10) / 10,
+        anomaly: isAnomaly ? Math.round(d.value * 10) / 10 : null,
+      }
+    })
+    return { series, anomalyCount }
+  }, [filteredBreathing])
+
   if (dailySleep.length === 0 && filteredBreathing.length === 0) {
     return <div className="text-zinc-500 text-center py-20">No sleep stage data found.</div>
   }
@@ -384,6 +499,29 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
             value={`${recent7Debt > 0 ? '+' : ''}${recent7Debt}h`}
             sub={recent7Debt >= 0 ? 'Surplus' : 'Deficit'}
             color={recent7Debt >= 0 ? '#22c55e' : recent7Debt >= -3 ? '#f97316' : '#ef4444'}
+          />
+        )}
+        {avgLatency !== null && (
+          <StatBox
+            label="Latency"
+            value={`${avgLatency}m`}
+            sub="Time to fall asleep"
+            color={avgLatency <= 20 ? '#22c55e' : avgLatency <= 35 ? '#f97316' : '#ef4444'}
+          />
+        )}
+        {avgWaso !== null && (
+          <StatBox
+            label="WASO"
+            value={`${avgWaso}m`}
+            sub="Awake mid-sleep"
+            color={avgWaso <= 20 ? '#22c55e' : avgWaso <= 40 ? '#f97316' : '#ef4444'}
+          />
+        )}
+        {avgMidSleep !== null && (
+          <StatBox
+            label="Midsleep"
+            value={minutesToTime(avgMidSleep)}
+            sub="Chronotype marker"
           />
         )}
       </div>
@@ -624,6 +762,188 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
           </div>
         )}
       </div>
+
+      {/* Deep-dive section */}
+      {(consistencyTrend.length > 0 || latencyData.length > 0 || wasoData.length > 0 || chronotypeData.length > 1) && (
+        <h2 className="text-sm font-medium text-zinc-400 mt-2">Deep Dive</h2>
+      )}
+
+      {/* Sleep Consistency trend */}
+      {consistencyTrend.length > 1 && (
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Sleep Consistency (rolling 14-day)</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Higher = steadier bed/wake times and duration. Low variance is a stronger health predictor than any single night.</p>
+            </div>
+            <AISummaryButton title="Sleep Consistency" description="Rolling 14-day consistency score. Higher = steadier sleep schedule." chartData={consistencyTrend} />
+          </div>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
+              <AreaChart margin={chartMargin} data={consistencyTrend}>
+                <defs>
+                  <linearGradient id="consistencyGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: ct.tick }} />
+                <ReferenceLine y={80} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Excellent', position: 'right', fill: ct.tick, fontSize: 10 }} />
+                <ReferenceLine y={60} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Good', position: 'right', fill: ct.tick, fontSize: 10 }} />
+                <Tooltip content={<ChartTooltip formatter={(v) => [`${v}`, 'Score']} />} />
+                <Area type="monotone" dataKey="score" stroke="#22c55e" fill="url(#consistencyGrad)" strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Sleep Latency */}
+        {latencyData.length > 3 && (
+          <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Sleep Latency</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Minutes from bed to first sleep stage. Healthy range: 10–20 min. &gt;30 min suggests stress, screens, or late caffeine.</p>
+              </div>
+              <AISummaryButton title="Sleep Latency" description="Minutes from bed to first sleep stage" chartData={latencyData} />
+            </div>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
+                <AreaChart margin={chartMargin} data={latencyData}>
+                  <defs>
+                    <linearGradient id="latencyGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS.cyan} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={COLORS.cyan} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <ReferenceLine y={20} stroke="#22c55e" strokeDasharray="3 3" />
+                  <ReferenceLine y={30} stroke="#ef4444" strokeDasharray="3 3" />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} min`, 'Latency']} />} />
+                  <Area type="monotone" dataKey="value" stroke={COLORS.cyan} fill="url(#latencyGrad)" strokeWidth={1.5} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* WASO */}
+        {wasoData.length > 3 && (
+          <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-300">Wake After Sleep Onset (WASO)</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Minutes awake between falling asleep and final wake. Healthy: &lt;20 min. Rising trend can indicate fragmentation.</p>
+              </div>
+              <AISummaryButton title="WASO" description="Minutes awake between first sleep and final wake" chartData={wasoData} />
+            </div>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
+                <AreaChart margin={chartMargin} data={wasoData}>
+                  <defs>
+                    <linearGradient id="wasoGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={SLEEP_COLORS.awake} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={SLEEP_COLORS.awake} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                  <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                  <ReferenceLine y={20} stroke="#22c55e" strokeDasharray="3 3" />
+                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} min`, 'WASO']} />} />
+                  <Area type="monotone" dataKey="value" stroke={SLEEP_COLORS.awake} fill="url(#wasoGrad)" strokeWidth={1.5} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Chronotype drift */}
+      {chronotypeData.length > 1 && (
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Chronotype Drift (monthly midsleep)</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">Midpoint between sleep onset and final wake. A shifting midsleep signals social jet lag or lifestyle changes.</p>
+            </div>
+            <AISummaryButton title="Chronotype Drift" description="Monthly average midsleep time (midpoint between sleep onset and final wake)" chartData={chronotypeData} />
+          </div>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
+              <AreaChart margin={chartMargin} data={chronotypeData}>
+                <defs>
+                  <linearGradient id="chronoGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS.purple} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={COLORS.purple} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                <YAxis
+                  tick={{ fontSize: 10, fill: ct.tick }}
+                  tickFormatter={(v) => minutesToTime(v)}
+                  domain={['auto', 'auto']}
+                />
+                <Tooltip content={<ChartTooltip formatter={(v, name) => {
+                  if (name === 'midSleep') return [minutesToTime(v as number), 'Midsleep']
+                  return [`±${v} min`, 'Spread (σ)']
+                }} />} />
+                <Area type="monotone" dataKey="midSleep" stroke={COLORS.purple} fill="url(#chronoGrad)" strokeWidth={1.5} dot={{ r: 3 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Respiratory Rate Anomalies */}
+      {respAnomalyData.series.length > 14 && (
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Respiratory Rate Anomalies</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Nights more than 1 SD from your 30-day baseline. Elevated resp rate often precedes illness by 1–2 days.
+                {respAnomalyData.anomalyCount > 0 && <> Flagged: <span className="text-orange-400">{respAnomalyData.anomalyCount} night{respAnomalyData.anomalyCount === 1 ? '' : 's'}</span>.</>}
+              </p>
+            </div>
+            <AISummaryButton title="Respiratory Rate Anomalies" description="Nights outside 1 SD of rolling 30-day baseline" chartData={respAnomalyData.series} />
+          </div>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
+              <ComposedChart margin={chartMargin} data={respAnomalyData.series}>
+                <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
+                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
+                <Tooltip content={<ChartTooltip formatter={(v, name) => {
+                  if (name === 'value') return [`${v} br/min`, 'Resp Rate']
+                  if (name === 'baseline') return [`${v} br/min`, 'Baseline']
+                  if (name === 'upper') return [`${v} br/min`, '+1 SD']
+                  if (name === 'lower') return [`${v} br/min`, '−1 SD']
+                  if (name === 'anomaly') return [`${v} br/min`, 'Anomaly']
+                  return [`${v}`, String(name)]
+                }} />} />
+                <Area type="monotone" dataKey="upper" stroke="none" fill={COLORS.cyan} fillOpacity={0.08} />
+                <Area type="monotone" dataKey="lower" stroke="none" fill="#0a0a0a" fillOpacity={1} />
+                <Line type="monotone" dataKey="baseline" stroke={COLORS.cyan} strokeWidth={1} strokeDasharray="4 4" dot={false} strokeOpacity={0.6} />
+                <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={1.5} dot={false} />
+                <Scatter dataKey="anomaly" fill="#ef4444" shape="circle" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex gap-4 justify-center mt-2 flex-wrap">
+            <Legend color="#3b82f6" label="Resp rate" />
+            <Legend color={COLORS.cyan} label="30-day baseline" dashed />
+            <Legend color="#ef4444" label="Anomaly (>1 SD)" />
+          </div>
+        </div>
+      )}
 
       {/* Breathing & Respiratory section */}
       {(weeklyDisturbances.length > 1 || weeklyRespRate.length > 1 || weeklySpo2.length > 1) && (

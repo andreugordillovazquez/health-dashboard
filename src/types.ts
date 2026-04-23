@@ -48,6 +48,9 @@ export interface DailySleep {
   total: number // core + deep + rem
   bedtime: string // HH:MM
   wakeTime: string // HH:MM
+  latency: number | null // minutes from first InBed to first sleep stage (null if no InBed records)
+  waso: number // wake after sleep onset — awake minutes between first and last sleep stages
+  midSleep: number | null // time-of-day (minutes from midnight) of the midpoint between sleep onset and final wake
 }
 
 export interface CaffeineRecord {
