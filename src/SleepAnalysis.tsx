@@ -500,7 +500,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MetricGroup
           title="Duration & Stages"
-          description="How much you slept and how that time was split between stages. Deep sleep drives physical recovery and memory consolidation; REM supports learning, mood, and emotional processing; Core (light) sleep is the connective tissue between them."
+          description="Deep = physical recovery. REM = learning and mood. Core = light sleep between them."
           metrics={[
             { label: 'Avg Sleep', value: `${avgTotal.toFixed(1)}h`, sub: 'Last 30 nights' },
             { label: 'Deep', value: `${avgDeep.toFixed(1)}h`, sub: `${avgTotal > 0 ? Math.round(avgDeep / avgTotal * 100) : 0}% of total`, color: SLEEP_COLORS.deep },
@@ -510,7 +510,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
         />
         <MetricGroup
           title="Schedule & Chronotype"
-          description="When you sleep and how regular the schedule is. Consistency (0–100) rewards steady bed/wake times — a stronger long-term predictor of health than total hours. Midsleep is the midpoint between falling asleep and waking; a shifting midsleep hints at social jet lag or lifestyle changes."
+          description="Consistency (0–100) rewards steady bed/wake times. Midsleep is your body-clock marker — a shifting one signals social jet lag."
           metrics={[
             { label: 'Bedtime', value: minutesToTime(avgBedtime > 1440 ? avgBedtime - 1440 : avgBedtime), sub: `±${Math.round(bedtimeStd)} min` },
             { label: 'Wake', value: minutesToTime(avgWake), sub: `±${Math.round(wakeStd)} min` },
@@ -529,7 +529,7 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
 
       <MetricGroup
         title="Sleep Quality"
-        description="How well you actually slept once in bed. Efficiency = time asleep ÷ time in bed. Latency is how long it took to fall asleep (10–20 min is typical; >30 often points to stress, screens, or late caffeine). WASO = Wake After Sleep Onset — minutes awake between falling asleep and final wake; rising WASO signals fragmentation. 7-Day Debt is your rolling surplus or deficit against an 8h target."
+        description="How well you slept once in bed. Latency = time to fall asleep. WASO = minutes awake after falling asleep. Debt = rolling hours vs an 8h target."
         metrics={[
           avgEfficiency !== null
             ? {
