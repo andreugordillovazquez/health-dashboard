@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import type { SleepRecord, DailySleep, WristTempRecord, DailyBreathing } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, chartMargin, COLORS, shortDate, avg, Legend, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
+import { chartMargin, COLORS, shortDate, avg, Legend, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
 
 const SLEEP_COLORS = { core: '#6366f1', deep: COLORS.purple, rem: COLORS.cyan, awake: COLORS.orange, temp: COLORS.red }
 
@@ -171,6 +171,37 @@ function weeklyAverageSleep(daily: DailySleep[]): { week: string; core: number; 
     })
   }
   return result
+}
+
+interface Metric {
+  label: string
+  value: string
+  sub?: string
+  color?: string
+}
+
+function MetricGroup({ title, description, metrics }: { title: string; description: string; metrics: (Metric | null)[] }) {
+  const visible = metrics.filter((m): m is Metric => m !== null)
+  if (visible.length === 0) return null
+  return (
+    <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+      <div className="mb-3">
+        <h3 className="text-sm font-medium text-zinc-300">{title}</h3>
+        <p className="text-xs text-zinc-500 mt-0.5">{description}</p>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-4">
+        {visible.map((m) => (
+          <div key={m.label} className="min-w-0">
+            <div className="text-[10px] font-medium tracking-wider uppercase text-zinc-500 mb-1">{m.label}</div>
+            <div className="text-[22px] font-semibold tracking-tight tabular-nums leading-none" style={{ color: m.color }}>
+              {m.value}
+            </div>
+            {m.sub && <div className="text-zinc-500 text-[11px] mt-1.5 tabular-nums">{m.sub}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 interface Props {
@@ -465,66 +496,75 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
   return (
     <div className="space-y-6">
       <TabHeader title="Sleep" description="Sleep duration, stages, schedule patterns, and breathing metrics during sleep." />
-      {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        <StatBox label="Avg Sleep" value={`${avgTotal.toFixed(1)}h`} sub="Last 30 nights" />
-        <StatBox label="Deep" value={`${avgDeep.toFixed(1)}h`} sub={`${avgTotal > 0 ? Math.round(avgDeep / avgTotal * 100) : 0}%`} color={SLEEP_COLORS.deep} />
-        <StatBox label="REM" value={`${avgRem.toFixed(1)}h`} sub={`${avgTotal > 0 ? Math.round(avgRem / avgTotal * 100) : 0}%`} color={SLEEP_COLORS.rem} />
-        <StatBox label="Core" value={`${avgCore.toFixed(1)}h`} sub={`${avgTotal > 0 ? Math.round(avgCore / avgTotal * 100) : 0}%`} color={SLEEP_COLORS.core} />
-        <StatBox
-          label="Bedtime"
-          value={minutesToTime(avgBedtime > 1440 ? avgBedtime - 1440 : avgBedtime)}
-          sub={`±${Math.round(bedtimeStd)} min`}
+      {/* Summary — grouped by what the metrics tell you */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <MetricGroup
+          title="Duration & Stages"
+          description="How much you slept and how that time was split between stages. Deep sleep drives physical recovery and memory consolidation; REM supports learning, mood, and emotional processing; Core (light) sleep is the connective tissue between them."
+          metrics={[
+            { label: 'Avg Sleep', value: `${avgTotal.toFixed(1)}h`, sub: 'Last 30 nights' },
+            { label: 'Deep', value: `${avgDeep.toFixed(1)}h`, sub: `${avgTotal > 0 ? Math.round(avgDeep / avgTotal * 100) : 0}% of total`, color: SLEEP_COLORS.deep },
+            { label: 'REM', value: `${avgRem.toFixed(1)}h`, sub: `${avgTotal > 0 ? Math.round(avgRem / avgTotal * 100) : 0}% of total`, color: SLEEP_COLORS.rem },
+            { label: 'Core', value: `${avgCore.toFixed(1)}h`, sub: `${avgTotal > 0 ? Math.round(avgCore / avgTotal * 100) : 0}% of total`, color: SLEEP_COLORS.core },
+          ]}
         />
-        <StatBox label="Wake" value={minutesToTime(avgWake)} sub={`±${Math.round(wakeStd)} min`} />
-        {consistencyScore !== null && (
-          <StatBox
-            label="Consistency"
-            value={`${consistencyScore}`}
-            sub={consistencyScore >= 80 ? 'Excellent' : consistencyScore >= 60 ? 'Good' : consistencyScore >= 40 ? 'Fair' : 'Poor'}
-            color={consistencyScore >= 80 ? '#22c55e' : consistencyScore >= 60 ? '#f97316' : '#ef4444'}
-          />
-        )}
-        {avgEfficiency !== null && (
-          <StatBox
-            label="Efficiency"
-            value={`${avgEfficiency}%`}
-            sub="Sleep / time in bed"
-            color={avgEfficiency >= 85 ? '#22c55e' : avgEfficiency >= 75 ? '#f97316' : '#ef4444'}
-          />
-        )}
-        {recent7Debt !== null && (
-          <StatBox
-            label="7-Day Debt"
-            value={`${recent7Debt > 0 ? '+' : ''}${recent7Debt}h`}
-            sub={recent7Debt >= 0 ? 'Surplus' : 'Deficit'}
-            color={recent7Debt >= 0 ? '#22c55e' : recent7Debt >= -3 ? '#f97316' : '#ef4444'}
-          />
-        )}
-        {avgLatency !== null && (
-          <StatBox
-            label="Latency"
-            value={`${avgLatency}m`}
-            sub="Time to fall asleep"
-            color={avgLatency <= 20 ? '#22c55e' : avgLatency <= 35 ? '#f97316' : '#ef4444'}
-          />
-        )}
-        {avgWaso !== null && (
-          <StatBox
-            label="WASO"
-            value={`${avgWaso}m`}
-            sub="Awake mid-sleep"
-            color={avgWaso <= 20 ? '#22c55e' : avgWaso <= 40 ? '#f97316' : '#ef4444'}
-          />
-        )}
-        {avgMidSleep !== null && (
-          <StatBox
-            label="Midsleep"
-            value={minutesToTime(avgMidSleep)}
-            sub="Chronotype marker"
-          />
-        )}
+        <MetricGroup
+          title="Schedule & Chronotype"
+          description="When you sleep and how regular the schedule is. Consistency (0–100) rewards steady bed/wake times — a stronger long-term predictor of health than total hours. Midsleep is the midpoint between falling asleep and waking; a shifting midsleep hints at social jet lag or lifestyle changes."
+          metrics={[
+            { label: 'Bedtime', value: minutesToTime(avgBedtime > 1440 ? avgBedtime - 1440 : avgBedtime), sub: `±${Math.round(bedtimeStd)} min` },
+            { label: 'Wake', value: minutesToTime(avgWake), sub: `±${Math.round(wakeStd)} min` },
+            consistencyScore !== null
+              ? {
+                  label: 'Consistency',
+                  value: `${consistencyScore}`,
+                  sub: consistencyScore >= 80 ? 'Excellent' : consistencyScore >= 60 ? 'Good' : consistencyScore >= 40 ? 'Fair' : 'Poor',
+                  color: consistencyScore >= 80 ? '#22c55e' : consistencyScore >= 60 ? '#f97316' : '#ef4444',
+                }
+              : null,
+            avgMidSleep !== null ? { label: 'Midsleep', value: minutesToTime(avgMidSleep), sub: 'Midpoint of sleep' } : null,
+          ]}
+        />
       </div>
+
+      <MetricGroup
+        title="Sleep Quality"
+        description="How well you actually slept once in bed. Efficiency = time asleep ÷ time in bed. Latency is how long it took to fall asleep (10–20 min is typical; >30 often points to stress, screens, or late caffeine). WASO = Wake After Sleep Onset — minutes awake between falling asleep and final wake; rising WASO signals fragmentation. 7-Day Debt is your rolling surplus or deficit against an 8h target."
+        metrics={[
+          avgEfficiency !== null
+            ? {
+                label: 'Efficiency',
+                value: `${avgEfficiency}%`,
+                sub: 'Asleep / in bed',
+                color: avgEfficiency >= 85 ? '#22c55e' : avgEfficiency >= 75 ? '#f97316' : '#ef4444',
+              }
+            : null,
+          avgLatency !== null
+            ? {
+                label: 'Latency',
+                value: `${avgLatency}m`,
+                sub: 'Time to fall asleep',
+                color: avgLatency <= 20 ? '#22c55e' : avgLatency <= 35 ? '#f97316' : '#ef4444',
+              }
+            : null,
+          avgWaso !== null
+            ? {
+                label: 'WASO',
+                value: `${avgWaso}m`,
+                sub: 'Awake mid-sleep',
+                color: avgWaso <= 20 ? '#22c55e' : avgWaso <= 40 ? '#f97316' : '#ef4444',
+              }
+            : null,
+          recent7Debt !== null
+            ? {
+                label: '7-Day Debt',
+                value: `${recent7Debt > 0 ? '+' : ''}${recent7Debt}h`,
+                sub: recent7Debt >= 0 ? 'Surplus vs 8h' : 'Deficit vs 8h',
+                color: recent7Debt >= 0 ? '#22c55e' : recent7Debt >= -3 ? '#f97316' : '#ef4444',
+              }
+            : null,
+        ]}
+      />
 
       {/* Sleep Debt Tracker */}
       {filteredDebt.length > 7 && (
