@@ -5,7 +5,8 @@ import {
 } from 'recharts'
 import type { SleepRecord, DailySleep, WristTempRecord, DailyBreathing } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, chartMargin, COLORS, shortDate, avg, Legend, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
+import { withProjection } from './analysis'
+import { StatBox, chartMargin, COLORS, shortDate, avg, Legend, AISummaryButton, ProjectionToggleButton, useProjectionToggle, TabHeader, useChartTheme, ChartTooltip } from './ui'
 
 const SLEEP_COLORS = { core: '#6366f1', deep: COLORS.purple, rem: COLORS.cyan, awake: COLORS.orange, temp: COLORS.red }
 
@@ -343,6 +344,26 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
     return Math.round(last7.reduce((s, d) => s + (d.total / 60 - TARGET_HOURS), 0) * 10) / 10
   }, [dailySleep])
 
+  // Projections
+  const totalSleepData = useMemo(() =>
+    weeklyData.map(w => ({ week: w.week, total: Math.round((w.core + w.deep + w.rem) * 10) / 10 })),
+    [weeklyData]
+  )
+
+  const debtProj = useMemo(() => withProjection(filteredDebt, { valueKey: 'debt' }), [filteredDebt])
+  const totalSleepProj = useMemo(() => withProjection(totalSleepData, { dateKey: 'week', valueKey: 'total', granularity: 'weekly', min: 0 }), [totalSleepData])
+  const tempDevProj = useMemo(() => withProjection(tempDeviationData, { valueKey: 'deviation' }), [tempDeviationData])
+  const disturbancesProj = useMemo(() => withProjection(weeklyDisturbances, { dateKey: 'week', valueKey: 'value', granularity: 'weekly', min: 0 }), [weeklyDisturbances])
+  const respRateProj = useMemo(() => withProjection(weeklyRespRate, { dateKey: 'week', valueKey: 'value', granularity: 'weekly', min: 0 }), [weeklyRespRate])
+  const spo2Proj = useMemo(() => withProjection(weeklySpo2, { dateKey: 'week', valueKey: 'value', min: 0, max: 100, granularity: 'weekly' }), [weeklySpo2])
+
+  const debtProjection = useProjectionToggle(debtProj.canProject)
+  const totalSleepProjection = useProjectionToggle(totalSleepProj.canProject)
+  const tempDevProjection = useProjectionToggle(tempDevProj.canProject)
+  const disturbancesProjection = useProjectionToggle(disturbancesProj.canProject)
+  const respRateProjection = useProjectionToggle(respRateProj.canProject)
+  const spo2Projection = useProjectionToggle(spo2Proj.canProject)
+
   if (dailySleep.length === 0 && filteredBreathing.length === 0) {
     return <div className="text-zinc-500 text-center py-20">No sleep stage data found.</div>
   }
@@ -396,11 +417,14 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
               <h3 className="text-sm font-medium text-zinc-300">Sleep Debt</h3>
               <p className="text-xs text-zinc-500 mt-0.5">Cumulative surplus or deficit against an {TARGET_HOURS}h nightly target. Below zero means you owe your body sleep.</p>
             </div>
-            <AISummaryButton title="Sleep Debt" description={`Cumulative sleep surplus/deficit vs ${TARGET_HOURS}h target`} chartData={filteredDebt} />
+            <div className="flex items-center gap-1 shrink-0">
+              <ProjectionToggleButton projection={debtProjection} />
+              <AISummaryButton title="Sleep Debt" description={`Cumulative sleep surplus/deficit vs ${TARGET_HOURS}h target`} chartData={filteredDebt} />
+            </div>
           </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-              <ComposedChart margin={chartMargin} data={filteredDebt}>
+              <ComposedChart margin={chartMargin} data={debtProjection.enabled ? debtProj.data : filteredDebt}>
                 <defs>
                   <linearGradient id="debtPosGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
@@ -421,6 +445,9 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                 ]} />} />
                 <Area type="monotone" dataKey="debt" stroke={currentDebt !== null && currentDebt >= 0 ? '#22c55e' : '#ef4444'} fill={currentDebt !== null && currentDebt >= 0 ? 'url(#debtPosGrad)' : 'url(#debtNegGrad)'} strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="nightly" stroke={COLORS.cyan} strokeWidth={1} dot={false} strokeOpacity={0.4} />
+                {debtProjection.enabled && (
+                  <Line type="monotone" dataKey="debtProjection" stroke={currentDebt !== null && currentDebt >= 0 ? '#22c55e' : '#ef4444'} strokeWidth={2} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -519,11 +546,14 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
               <div>
                 <h3 className="text-sm font-medium text-zinc-300">Total Sleep Trend (weekly avg)</h3>
               </div>
-              <AISummaryButton title="Total Sleep Trend" description="Weekly average total sleep duration" chartData={weeklyData.map(w => ({ week: w.week, total: Math.round((w.core + w.deep + w.rem) * 10) / 10 }))} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={totalSleepProjection} />
+                <AISummaryButton title="Total Sleep Trend" description="Weekly average total sleep duration" chartData={totalSleepData} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={weeklyData.map(w => ({ week: w.week, total: Math.round((w.core + w.deep + w.rem) * 10) / 10 }))}>
+                <AreaChart margin={chartMargin} data={totalSleepProjection.enabled ? totalSleepProj.data : totalSleepData}>
                   <defs>
                     <linearGradient id="sleepTotalGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -533,8 +563,11 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v}h`, 'Total Sleep']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v}h`, name === 'totalProjection' ? 'Forecast' : 'Total Sleep']} />} />
                   <Area type="monotone" dataKey="total" stroke="#6366f1" fill="url(#sleepTotalGrad)" strokeWidth={1.5} dot={false} />
+                  {totalSleepProjection.enabled && (
+                    <Line type="monotone" dataKey="totalProjection" stroke="#6366f1" strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -598,11 +631,14 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                   Deviation from baseline ({avgTemp?.toFixed(1)}°C ±{tempStd?.toFixed(2)}°C). Spikes may indicate illness or cycle changes.
                 </p>
               </div>
-              <AISummaryButton title="Wrist Temperature During Sleep" description="Deviation from baseline wrist temperature. Spikes may indicate illness or cycle changes." chartData={tempDeviationData} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={tempDevProjection} />
+                <AISummaryButton title="Wrist Temperature During Sleep" description="Deviation from baseline wrist temperature. Spikes may indicate illness or cycle changes." chartData={tempDeviationData} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={tempDeviationData}>
+                <AreaChart margin={chartMargin} data={tempDevProjection.enabled ? tempDevProj.data : tempDeviationData}>
                   <defs>
                     <linearGradient id="tempGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={SLEEP_COLORS.temp} stopOpacity={0.3} />
@@ -615,9 +651,13 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                   <ReferenceLine y={0} stroke="#71717a" strokeDasharray="3 3" />
                   <Tooltip content={<ChartTooltip formatter={(v, name) => {
                       if (name === 'deviation') return [`${(v as number) > 0 ? '+' : ''}${v}°C`, 'Deviation']
+                      if (name === 'deviationProjection') return [`${(v as number) > 0 ? '+' : ''}${v}°C`, 'Forecast']
                       return [`${v}°C`, 'Temperature']
                     }} />} />
                   <Area type="monotone" dataKey="deviation" stroke={SLEEP_COLORS.temp} fill="url(#tempGrad)" strokeWidth={1.5} dot={false} />
+                  {tempDevProjection.enabled && (
+                    <Line type="monotone" dataKey="deviationProjection" stroke={SLEEP_COLORS.temp} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -641,11 +681,14 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                     {avgDist !== null && <> Current avg: <span className={avgDist < 5 ? 'text-green-400' : avgDist < 15 ? 'text-orange-400' : 'text-red-400'}>{avgDist.toFixed(1)}/hr</span></>}
                   </p>
                 </div>
-                <AISummaryButton title="Breathing Disturbances" description="Events per hour during sleep. Under 5 is normal." chartData={weeklyDisturbances} />
+                <div className="flex items-center gap-1 shrink-0">
+                  <ProjectionToggleButton projection={disturbancesProjection} />
+                  <AISummaryButton title="Breathing Disturbances" description="Events per hour during sleep. Under 5 is normal." chartData={weeklyDisturbances} />
+                </div>
               </div>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                  <AreaChart margin={chartMargin} data={weeklyDisturbances}>
+                  <AreaChart margin={chartMargin} data={disturbancesProjection.enabled ? disturbancesProj.data : weeklyDisturbances}>
                     <defs>
                       <linearGradient id="distGrad2" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
@@ -657,8 +700,11 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                     <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                     <ReferenceLine y={5} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Mild', position: 'right', fill: ct.tick, fontSize: 10 }} />
                     <ReferenceLine y={15} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Moderate', position: 'right', fill: ct.tick, fontSize: 10 }} />
-                    <Tooltip content={<ChartTooltip formatter={(v) => [`${v}/hr`, 'Disturbances']} />} />
+                    <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v}/hr`, name === 'valueProjection' ? 'Forecast' : 'Disturbances']} />} />
                     <Area type="monotone" dataKey="value" stroke="#ef4444" fill="url(#distGrad2)" strokeWidth={1.5} dot={false} />
+                    {disturbancesProjection.enabled && (
+                      <Line type="monotone" dataKey="valueProjection" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                    )}
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -674,11 +720,14 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                     <h3 className="text-sm font-medium text-zinc-300">Respiratory Rate (weekly avg)</h3>
                     <p className="text-xs text-zinc-500 mt-0.5">Normal: 12-20 breaths/min at rest</p>
                   </div>
-                  <AISummaryButton title="Respiratory Rate" description="Normal: 12-20 breaths/min at rest" chartData={weeklyRespRate} />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <ProjectionToggleButton projection={respRateProjection} />
+                    <AISummaryButton title="Respiratory Rate" description="Normal: 12-20 breaths/min at rest" chartData={weeklyRespRate} />
+                  </div>
                 </div>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                    <AreaChart margin={chartMargin} data={weeklyRespRate}>
+                    <AreaChart margin={chartMargin} data={respRateProjection.enabled ? respRateProj.data : weeklyRespRate}>
                       <defs>
                         <linearGradient id="sleepRespRateGrad" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -690,8 +739,11 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                       <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                       <ReferenceLine y={12} stroke="#71717a" strokeDasharray="3 3" />
                       <ReferenceLine y={20} stroke="#71717a" strokeDasharray="3 3" />
-                      <Tooltip content={<ChartTooltip formatter={(v) => [`${v} br/min`, 'Respiratory Rate']} />} />
+                      <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} br/min`, name === 'valueProjection' ? 'Forecast' : 'Respiratory Rate']} />} />
                       <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#sleepRespRateGrad)" strokeWidth={1.5} dot={false} />
+                      {respRateProjection.enabled && (
+                        <Line type="monotone" dataKey="valueProjection" stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                      )}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -706,11 +758,14 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                     <h3 className="text-sm font-medium text-zinc-300">Blood Oxygen (weekly avg)</h3>
                     <p className="text-xs text-zinc-500 mt-0.5">Normal: 95-100%</p>
                   </div>
-                  <AISummaryButton title="Blood Oxygen" description="Normal: 95-100%" chartData={weeklySpo2} />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <ProjectionToggleButton projection={spo2Projection} />
+                    <AISummaryButton title="Blood Oxygen" description="Normal: 95-100%" chartData={weeklySpo2} />
+                  </div>
                 </div>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                    <AreaChart margin={chartMargin} data={weeklySpo2}>
+                    <AreaChart margin={chartMargin} data={spo2Projection.enabled ? spo2Proj.data : weeklySpo2}>
                       <defs>
                         <linearGradient id="spo2Grad2" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
@@ -721,8 +776,11 @@ export default function SleepAnalysis({ sleepRecords, wristTempRecords, dailyBre
                       <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                       <YAxis domain={['auto', 100]} tick={{ fontSize: 10, fill: ct.tick }} />
                       <ReferenceLine y={95} stroke="#71717a" strokeDasharray="3 3" />
-                      <Tooltip content={<ChartTooltip formatter={(v) => [`${v}%`, 'SpO2']} />} />
+                      <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v}%`, name === 'valueProjection' ? 'Forecast' : 'SpO2']} />} />
                       <Area type="monotone" dataKey="value" stroke="#22c55e" fill="url(#spo2Grad2)" strokeWidth={1.5} dot={false} />
+                      {spo2Projection.enabled && (
+                        <Line type="monotone" dataKey="valueProjection" stroke="#22c55e" strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                      )}
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>

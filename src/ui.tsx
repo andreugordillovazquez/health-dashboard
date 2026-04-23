@@ -409,19 +409,46 @@ export function AISummaryButton({ title, description, chartData }: {
   )
 }
 
-export const ChartCard = memo(function ChartCard({ title, description, tall, chartData, children }: {
-  title: string; description?: string; tall?: boolean; chartData?: unknown[]; children: React.ReactNode
+export interface ProjectionControl {
+  available: boolean
+  enabled: boolean
+  onToggle: () => void
+}
+
+export function ProjectionToggleButton({ projection }: { projection?: ProjectionControl }) {
+  if (!projection?.available) return null
+  return (
+    <button
+      onClick={projection.onToggle}
+      title={projection.enabled ? 'Hide projection' : 'Show projection'}
+      aria-pressed={projection.enabled}
+      className={`px-2 py-0.5 rounded-md text-[10px] font-medium tracking-wide uppercase transition-colors ${
+        projection.enabled
+          ? 'bg-zinc-700 text-zinc-200'
+          : 'bg-zinc-800/60 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+      }`}
+    >
+      Forecast
+    </button>
+  )
+}
+
+export const ChartCard = memo(function ChartCard({ title, description, tall, chartData, projection, children }: {
+  title: string; description?: string; tall?: boolean; chartData?: unknown[]; projection?: ProjectionControl; children: React.ReactNode
 }) {
   return (
     <div className="bg-zinc-900 rounded-xl p-4 transition-colors duration-150 hover:bg-zinc-800/40">
-      <div className="flex items-start justify-between mb-1">
-        <div>
+      <div className="flex items-start justify-between mb-1 gap-2">
+        <div className="min-w-0">
           <h3 className="text-sm font-medium text-zinc-300">{title}</h3>
           {description && <p className="text-xs text-zinc-500 mt-0.5">{description}</p>}
         </div>
-        {chartData && chartData.length > 0 && (
-          <AISummaryButton title={title} description={description} chartData={chartData} />
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          <ProjectionToggleButton projection={projection} />
+          {chartData && chartData.length > 0 && (
+            <AISummaryButton title={title} description={description} chartData={chartData} />
+          )}
+        </div>
       </div>
       <div className={tall ? 'h-64' : 'h-56'}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
@@ -431,6 +458,16 @@ export const ChartCard = memo(function ChartCard({ title, description, tall, cha
     </div>
   )
 })
+
+/**
+ * Per-chart projection toggle state. Returns the control object you pass to
+ * ChartCard, plus the `enabled` bool for conditional rendering of the dashed line.
+ */
+export function useProjectionToggle(available: boolean): ProjectionControl & { enabled: boolean } {
+  const [enabled, setEnabled] = useState(false)
+  const onToggle = useCallback(() => setEnabled(v => !v), [])
+  return { available, enabled: available && enabled, onToggle }
+}
 
 export function Legend({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) {
   return (

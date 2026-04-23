@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip,
   CartesianGrid, BarChart, Bar, ReferenceLine,
 } from 'recharts'
 import type { Granularity } from './analysis'
-import { StatBox, AISummaryButton, TabHeader, ChartTooltip, useChartTheme, COLORS, shortDate, avg } from './ui'
+import { withProjection } from './analysis'
+import { StatBox, AISummaryButton, ProjectionToggleButton, useProjectionToggle, TabHeader, ChartTooltip, useChartTheme, COLORS, shortDate, avg } from './ui'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -76,6 +77,9 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
   const maxDay = recent.length > 0 ? Math.max(...recent.map(d => d.minutes)) : 0
   const totalDays = filtered.length
 
+  const weeklyProj = useMemo(() => withProjection(weeklyData, { dateKey: 'week', valueKey: 'value', granularity: 'weekly', min: 0 }), [weeklyData])
+  const weeklyProjection = useProjectionToggle(weeklyProj.canProject)
+
   if (filtered.length === 0) {
     return <div className="text-zinc-500 text-center py-20">No daylight data found.</div>
   }
@@ -123,11 +127,14 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
               <h3 className="text-sm font-medium text-zinc-300">Daily Daylight Exposure (weekly avg)</h3>
               <p className="text-xs text-zinc-500 mt-0.5">Minutes of outdoor light detected by Apple Watch. 30+ min/day supports circadian rhythm, vitamin D, and mood.</p>
             </div>
-            <AISummaryButton title="Daily Daylight Exposure (weekly avg)" description="Minutes of outdoor light detected by Apple Watch. 30+ min/day supports circadian rhythm, vitamin D, and mood." chartData={weeklyData} />
+            <div className="flex items-center gap-1 shrink-0">
+              <ProjectionToggleButton projection={weeklyProjection} />
+              <AISummaryButton title="Daily Daylight Exposure (weekly avg)" description="Minutes of outdoor light detected by Apple Watch. 30+ min/day supports circadian rhythm, vitamin D, and mood." chartData={weeklyData} />
+            </div>
           </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-              <AreaChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={weeklyData}>
+              <AreaChart margin={{ top: 5, right: 5, bottom: 0, left: -15 }} data={weeklyProjection.enabled ? weeklyProj.data : weeklyData}>
                 <defs>
                   <linearGradient id="daylightGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={COLORS.yellow} stopOpacity={0.3} />
@@ -138,8 +145,11 @@ export default function Daylight({ dailyDaylight, cutoffDate, granularity: _gran
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis tick={{ fontSize: 10, fill: ct.tick }} />
                 <ReferenceLine y={30} stroke="#71717a" strokeDasharray="3 3" label={{ value: '30 min goal', position: 'right', fill: ct.tick, fontSize: 10 }} />
-                <Tooltip content={<ChartTooltip formatter={(v) => [`${v} min`, 'Daylight']} />} />
+                <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} min`, name === 'valueProjection' ? 'Forecast' : 'Daylight']} />} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.yellow} fill="url(#daylightGrad)" strokeWidth={1.5} dot={false} />
+                {weeklyProjection.enabled && (
+                  <Line type="monotone" dataKey="valueProjection" stroke={COLORS.yellow} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </div>

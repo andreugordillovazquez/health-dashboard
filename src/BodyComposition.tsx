@@ -5,7 +5,8 @@ import {
 } from 'recharts'
 import type { BodyRecord } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, chartMargin, COLORS, shortDate, Legend, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
+import { withProjection } from './analysis'
+import { StatBox, chartMargin, COLORS, shortDate, Legend, AISummaryButton, ProjectionToggleButton, useProjectionToggle, TabHeader, useChartTheme, ChartTooltip } from './ui'
 
 export default function BodyComposition({ bodyRecords, cutoffDate, granularity: _granularity }: { bodyRecords: BodyRecord[]; cutoffDate: string; granularity: Granularity }) {
   const ct = useChartTheme()
@@ -88,6 +89,19 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
     })()
     : null
 
+  // Projections
+  const weightProj = useMemo(() => withProjection(compositionData, { valueKey: 'weight', min: 0 }), [compositionData])
+  const weightStandaloneProj = useMemo(() => withProjection(weightData, { valueKey: 'weight', min: 0 }), [weightData])
+  const bodyFatProj = useMemo(() => withProjection(bodyFatData, { valueKey: 'bodyFat', min: 0, max: 100 }), [bodyFatData])
+  const bmiProj = useMemo(() => withProjection(bmiData, { valueKey: 'bmi', min: 0 }), [bmiData])
+  const leanMassProj = useMemo(() => withProjection(leanMassData, { valueKey: 'leanMass', min: 0 }), [leanMassData])
+
+  const compositionProjection = useProjectionToggle(weightProj.canProject)
+  const weightStandaloneProjection = useProjectionToggle(weightStandaloneProj.canProject)
+  const bodyFatProjection = useProjectionToggle(bodyFatProj.canProject)
+  const bmiProjection = useProjectionToggle(bmiProj.canProject)
+  const leanMassProjection = useProjectionToggle(leanMassProj.canProject)
+
   if (!hasWeight && !hasBodyFat && !hasLeanMass && !hasBmi) {
     return <div className="text-zinc-500 text-center py-20">No body composition data found in your export.</div>
   }
@@ -127,13 +141,16 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
       {/* Weight + Lean Mass combined */}
       {compositionData.length > 1 && hasLeanMass && (
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <div className="flex items-start justify-between mb-3">
+          <div className="flex items-start justify-between mb-3 gap-2">
             <h3 className="text-sm font-medium text-zinc-300">Weight vs Lean Mass</h3>
-            <AISummaryButton title="Weight vs Lean Mass" chartData={compositionData} />
+            <div className="flex items-center gap-1 shrink-0">
+              <ProjectionToggleButton projection={compositionProjection} />
+              <AISummaryButton title="Weight vs Lean Mass" chartData={compositionData} />
+            </div>
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-              <AreaChart margin={chartMargin} data={compositionData}>
+              <AreaChart margin={chartMargin} data={compositionProjection.enabled ? weightProj.data : compositionData}>
                 <defs>
                   <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={COLORS.orange} stopOpacity={0.3} />
@@ -144,7 +161,7 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                 <Tooltip content={<ChartTooltip formatter={(value, name) => {
-                    const label = name === 'weight' ? 'Weight' : name === 'leanMass' ? 'Lean Mass' : 'Fat Mass'
+                    const label = name === 'weight' ? 'Weight' : name === 'leanMass' ? 'Lean Mass' : name === 'weightProjection' ? 'Weight (forecast)' : 'Fat Mass'
                     return [`${value} kg`, label]
                   }} />} />
                 <Area type="monotone" dataKey="weight" stroke={COLORS.orange} fill="url(#weightGrad)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
@@ -152,13 +169,17 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                 {compositionData.some(d => d.fatMass) && (
                   <Line type="monotone" dataKey="fatMass" stroke={COLORS.red} strokeWidth={1.5} strokeDasharray="4 4" dot={{ r: 1.5 }} connectNulls />
                 )}
+                {compositionProjection.enabled && (
+                  <Line type="monotone" dataKey="weightProjection" stroke={COLORS.orange} strokeWidth={2} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex gap-4 justify-center mt-2">
+          <div className="flex gap-4 justify-center mt-2 flex-wrap">
             <Legend color={COLORS.orange} label="Weight" />
             <Legend color={COLORS.green} label="Lean Mass" />
             {compositionData.some(d => d.fatMass) && <Legend color={COLORS.red} label="Fat Mass" dashed />}
+            {compositionProjection.enabled && <Legend color={COLORS.orange} label="Forecast" dashed />}
           </div>
         </div>
       )}
@@ -167,13 +188,16 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
         {/* Weight trend (if no lean mass, show standalone) */}
         {weightData.length > 1 && !hasLeanMass && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex items-start justify-between mb-3 gap-2">
               <h3 className="text-sm font-medium text-zinc-300">Weight</h3>
-              <AISummaryButton title="Weight" chartData={weightData} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={weightStandaloneProjection} />
+                <AISummaryButton title="Weight" chartData={weightData} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={weightData}>
+                <AreaChart margin={chartMargin} data={weightStandaloneProjection.enabled ? weightStandaloneProj.data : weightData}>
                   <defs>
                     <linearGradient id="weightStandaloneGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={COLORS.orange} stopOpacity={0.3} />
@@ -183,8 +207,11 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} kg`, 'Weight']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} kg`, name === 'weightProjection' ? 'Forecast' : 'Weight']} />} />
                   <Area type="monotone" dataKey="weight" stroke={COLORS.orange} fill="url(#weightStandaloneGrad)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  {weightStandaloneProjection.enabled && (
+                    <Line type="monotone" dataKey="weightProjection" stroke={COLORS.orange} strokeWidth={2} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -194,13 +221,16 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
         {/* Body Fat % */}
         {bodyFatData.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex items-start justify-between mb-3 gap-2">
               <h3 className="text-sm font-medium text-zinc-300">Body Fat %</h3>
-              <AISummaryButton title="Body Fat %" chartData={bodyFatData} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={bodyFatProjection} />
+                <AISummaryButton title="Body Fat %" chartData={bodyFatData} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={bodyFatData}>
+                <AreaChart margin={chartMargin} data={bodyFatProjection.enabled ? bodyFatProj.data : bodyFatData}>
                   <defs>
                     <linearGradient id="bodyFatGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={COLORS.red} stopOpacity={0.3} />
@@ -210,8 +240,11 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v}%`, 'Body Fat']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v}%`, name === 'bodyFatProjection' ? 'Forecast' : 'Body Fat']} />} />
                   <Area type="monotone" dataKey="bodyFat" stroke={COLORS.red} fill="url(#bodyFatGrad)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  {bodyFatProjection.enabled && (
+                    <Line type="monotone" dataKey="bodyFatProjection" stroke={COLORS.red} strokeWidth={2} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -221,13 +254,16 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
         {/* BMI */}
         {bmiData.length > 1 && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex items-start justify-between mb-3 gap-2">
               <h3 className="text-sm font-medium text-zinc-300">BMI</h3>
-              <AISummaryButton title="BMI" chartData={bmiData} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={bmiProjection} />
+                <AISummaryButton title="BMI" chartData={bmiData} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={bmiData}>
+                <AreaChart margin={chartMargin} data={bmiProjection.enabled ? bmiProj.data : bmiData}>
                   <defs>
                     <linearGradient id="bmiGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={COLORS.purple} stopOpacity={0.3} />
@@ -237,10 +273,13 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v}`, 'BMI']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v}`, name === 'bmiProjection' ? 'Forecast' : 'BMI']} />} />
                   <ReferenceLine y={18.5} stroke="#71717a" strokeDasharray="3 3" label={{ value: '18.5', position: 'left', fill: ct.tick, fontSize: 10 }} />
                   <ReferenceLine y={25} stroke="#71717a" strokeDasharray="3 3" label={{ value: '25', position: 'left', fill: ct.tick, fontSize: 10 }} />
                   <Area type="monotone" dataKey="bmi" stroke={COLORS.purple} fill="url(#bmiGrad)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  {bmiProjection.enabled && (
+                    <Line type="monotone" dataKey="bmiProjection" stroke={COLORS.purple} strokeWidth={2} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -250,13 +289,16 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
         {/* Lean Mass standalone (if weight not available) */}
         {leanMassData.length > 1 && !hasWeight && (
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-            <div className="flex items-start justify-between mb-3">
+            <div className="flex items-start justify-between mb-3 gap-2">
               <h3 className="text-sm font-medium text-zinc-300">Lean Body Mass</h3>
-              <AISummaryButton title="Lean Body Mass" chartData={leanMassData} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={leanMassProjection} />
+                <AISummaryButton title="Lean Body Mass" chartData={leanMassData} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={leanMassData}>
+                <AreaChart margin={chartMargin} data={leanMassProjection.enabled ? leanMassProj.data : leanMassData}>
                   <defs>
                     <linearGradient id="leanMassGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={COLORS.green} stopOpacity={0.3} />
@@ -266,8 +308,11 @@ export default function BodyComposition({ bodyRecords, cutoffDate, granularity: 
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} kg`, 'Lean Mass']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} kg`, name === 'leanMassProjection' ? 'Forecast' : 'Lean Mass']} />} />
                   <Area type="monotone" dataKey="leanMass" stroke={COLORS.green} fill="url(#leanMassGrad)" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  {leanMassProjection.enabled && (
+                    <Line type="monotone" dataKey="leanMassProjection" stroke={COLORS.green} strokeWidth={2} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>

@@ -5,7 +5,8 @@ import {
 } from 'recharts'
 import type { DailyAudio } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, AISummaryButton, TabHeader, ChartTooltip, useChartTheme, chartMargin, COLORS, shortDate, shortMonth, avg } from './ui'
+import { withProjection } from './analysis'
+import { StatBox, AISummaryButton, ProjectionToggleButton, useProjectionToggle, TabHeader, ChartTooltip, useChartTheme, chartMargin, COLORS, shortDate, shortMonth, avg } from './ui'
 
 // WHO/NIOSH safe exposure thresholds
 const SAFE_HEADPHONE_DB = 80 // 80 dB for prolonged exposure
@@ -96,6 +97,11 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
   const avgEnv = recent.filter(d => d.envAvg !== null).map(d => d.envAvg!)
   const totalHpHours = Math.round(filtered.reduce((s, d) => s + d.headphoneMinutes, 0) / 60)
 
+  const hpProj = useMemo(() => withProjection(weeklyHeadphone, { dateKey: 'week', valueKey: 'avg', granularity: 'weekly', min: 0 }), [weeklyHeadphone])
+  const envProj = useMemo(() => withProjection(weeklyEnv, { dateKey: 'week', valueKey: 'avg', granularity: 'weekly', min: 0 }), [weeklyEnv])
+  const hpProjection = useProjectionToggle(hpProj.canProject)
+  const envProjection = useProjectionToggle(envProj.canProject)
+
   if (filtered.length === 0) {
     return <div className="text-zinc-500 text-center py-20">No audio exposure data found.</div>
   }
@@ -148,11 +154,14 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
                 <h3 className="text-sm font-medium text-zinc-300">Headphone Audio Levels (weekly)</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">Average and peak levels. WHO safe limit: 80 dB for prolonged exposure.</p>
               </div>
-              <AISummaryButton title="Headphone Audio Levels (weekly)" description="Average and peak levels. WHO safe limit: 80 dB for prolonged exposure." chartData={weeklyHeadphone} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={hpProjection} />
+                <AISummaryButton title="Headphone Audio Levels (weekly)" description="Average and peak levels. WHO safe limit: 80 dB for prolonged exposure." chartData={weeklyHeadphone} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={weeklyHeadphone}>
+                <AreaChart margin={chartMargin} data={hpProjection.enabled ? hpProj.data : weeklyHeadphone}>
                   <defs>
                     <linearGradient id="hpGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={COLORS.purple} stopOpacity={0.3} />
@@ -163,9 +172,12 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={SAFE_HEADPHONE_DB} stroke={COLORS.red} strokeDasharray="3 3" label={{ value: '80 dB limit', position: 'right', fill: ct.tick, fontSize: 10 }} />
-                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} dB`, name === 'avg' ? 'Average' : 'Peak']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} dB`, name === 'avg' ? 'Average' : name === 'avgProjection' ? 'Avg (forecast)' : 'Peak']} />} />
                   <Area type="monotone" dataKey="max" stroke={COLORS.purple} fill="url(#hpGrad)" strokeWidth={1} strokeOpacity={0.4} dot={false} />
                   <Line type="monotone" dataKey="avg" stroke={COLORS.purple} strokeWidth={1.5} dot={false} />
+                  {hpProjection.enabled && (
+                    <Line type="monotone" dataKey="avgProjection" stroke={COLORS.purple} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -180,11 +192,14 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
                 <h3 className="text-sm font-medium text-zinc-300">Environmental Noise (weekly)</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">Average and peak ambient noise from Apple Watch. Safe limit: 85 dB.</p>
               </div>
-              <AISummaryButton title="Environmental Noise (weekly)" description="Average and peak ambient noise from Apple Watch. Safe limit: 85 dB." chartData={weeklyEnv} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={envProjection} />
+                <AISummaryButton title="Environmental Noise (weekly)" description="Average and peak ambient noise from Apple Watch. Safe limit: 85 dB." chartData={weeklyEnv} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={weeklyEnv}>
+                <AreaChart margin={chartMargin} data={envProjection.enabled ? envProj.data : weeklyEnv}>
                   <defs>
                     <linearGradient id="envGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={COLORS.orange} stopOpacity={0.3} />
@@ -195,9 +210,12 @@ export default function AudioExposure({ dailyAudio, cutoffDate, granularity: _gr
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={LOUD_ENV_DB} stroke={COLORS.red} strokeDasharray="3 3" label={{ value: '85 dB limit', position: 'right', fill: ct.tick, fontSize: 10 }} />
-                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} dB`, name === 'avg' ? 'Average' : 'Peak']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} dB`, name === 'avg' ? 'Average' : name === 'avgProjection' ? 'Avg (forecast)' : 'Peak']} />} />
                   <Area type="monotone" dataKey="max" stroke={COLORS.orange} fill="url(#envGrad)" strokeWidth={1} strokeOpacity={0.4} dot={false} />
                   <Line type="monotone" dataKey="avg" stroke={COLORS.orange} strokeWidth={1.5} dot={false} />
+                  {envProjection.enabled && (
+                    <Line type="monotone" dataKey="avgProjection" stroke={COLORS.orange} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>

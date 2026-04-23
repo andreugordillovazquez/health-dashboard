@@ -176,6 +176,149 @@ export function workoutSummary(workouts: Workout[]): { type: string; count: numb
     .sort((a, b) => b.count - a.count)
 }
 
+// === Projections ===
+
+export const MIN_POINTS_FOR_PROJECTION = 14
+
+export interface Regression {
+  slope: number
+  intercept: number
+  r2: number
+}
+
+export function linearRegression(points: { x: number; y: number }[]): Regression | null {
+  const n = points.length
+  if (n < 2) return null
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0
+  for (const { x, y } of points) {
+    sumX += x
+    sumY += y
+    sumXY += x * y
+    sumX2 += x * x
+    sumY2 += y * y
+  }
+  const denom = n * sumX2 - sumX * sumX
+  if (denom === 0) return null
+  const slope = (n * sumXY - sumX * sumY) / denom
+  const intercept = (sumY - slope * sumX) / n
+  const meanY = sumY / n
+  let ssRes = 0, ssTot = 0
+  for (const { x, y } of points) {
+    const pred = slope * x + intercept
+    ssRes += (y - pred) ** 2
+    ssTot += (y - meanY) ** 2
+  }
+  const r2 = ssTot === 0 ? 1 : 1 - ssRes / ssTot
+  return { slope, intercept, r2 }
+}
+
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().substring(0, 10)
+}
+
+function addMonthsISO(iso: string, months: number): string {
+  const d = new Date(iso + 'T00:00:00Z')
+  d.setUTCMonth(d.getUTCMonth() + months)
+  return d.toISOString().substring(0, 10)
+}
+
+export interface ProjectionOptions {
+  /** Field in each datum holding the ISO date (or week/month start). Defaults to 'date'. */
+  dateKey?: string
+  /** Field in each datum holding the numeric value. Defaults to 'value'. */
+  valueKey?: string
+  /** Granularity of the input series. Defaults to 'daily'. */
+  granularity?: Granularity
+  /** Number of future points to project. Defaults to 25% of the input length, capped at 90. */
+  steps?: number
+  /** Optional lower clamp (e.g. 0 for counts). */
+  min?: number
+  /** Optional upper clamp (e.g. 100 for percentages). */
+  max?: number
+}
+
+/**
+ * Projects future values using linear regression on recent history.
+ * Returns [] when there isn't enough data. Each future point has the same shape
+ * as the input but with the value stored under `<valueKey>Projection`, plus the
+ * original valueKey set to null so charts can share one data array.
+ */
+export function computeProjection<T extends Record<string, unknown>>(
+  data: T[],
+  options: ProjectionOptions = {},
+): T[] {
+  const {
+    dateKey = 'date',
+    valueKey = 'value',
+    granularity = 'daily',
+    min,
+    max,
+  } = options
+
+  if (data.length < MIN_POINTS_FOR_PROJECTION) return []
+
+  const points: { x: number; y: number }[] = []
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i][valueKey] as number | null | undefined
+    if (v === null || v === undefined || Number.isNaN(v)) continue
+    points.push({ x: i, y: v })
+  }
+  if (points.length < MIN_POINTS_FOR_PROJECTION) return []
+
+  // Fit on the most recent half (or last 60 points, whichever is less) for responsiveness
+  const fitWindow = Math.max(MIN_POINTS_FOR_PROJECTION, Math.min(60, Math.floor(points.length / 2)))
+  const fitPoints = points.slice(-fitWindow)
+  const reg = linearRegression(fitPoints)
+  if (!reg) return []
+
+  const steps = options.steps ?? Math.min(90, Math.max(4, Math.floor(data.length * 0.25)))
+  const lastDate = data[data.length - 1][dateKey] as string
+  const result: T[] = []
+  const lastX = data.length - 1
+
+  for (let i = 1; i <= steps; i++) {
+    const x = lastX + i
+    let y = reg.slope * x + reg.intercept
+    if (min !== undefined) y = Math.max(min, y)
+    if (max !== undefined) y = Math.min(max, y)
+    y = Math.round(y * 100) / 100
+
+    let nextDate: string
+    if (granularity === 'monthly') nextDate = addMonthsISO(lastDate, i)
+    else if (granularity === 'weekly') nextDate = addDaysISO(lastDate, i * 7)
+    else nextDate = addDaysISO(lastDate, i)
+
+    const base = { [dateKey]: nextDate, [valueKey]: null, [`${valueKey}Projection`]: y } as Record<string, unknown>
+    result.push(base as T)
+  }
+  return result
+}
+
+/**
+ * Merges historical data with its projection so charts can render both in one pass.
+ * The historical tail gets a duplicate `<valueKey>Projection` point equal to its value
+ * so the dashed projection line visually connects to the solid historical line.
+ */
+export function withProjection<T extends Record<string, unknown>>(
+  data: T[],
+  options: ProjectionOptions = {},
+): { data: T[]; canProject: boolean } {
+  const projection = computeProjection(data, options)
+  if (projection.length === 0) {
+    return { data, canProject: false }
+  }
+  const valueKey = options.valueKey ?? 'value'
+  const projectionKey = `${valueKey}Projection`
+  const lastIdx = data.length - 1
+  const last = data[lastIdx]
+  const bridged = data.map((row, i) =>
+    i === lastIdx ? ({ ...row, [projectionKey]: last[valueKey] } as T) : row,
+  )
+  return { data: [...bridged, ...projection], canProject: true }
+}
+
 export function monthlyWorkouts(workouts: Workout[]): { month: string; count: number; minutes: number }[] {
   const map = new Map<string, { count: number; minutes: number }>()
 

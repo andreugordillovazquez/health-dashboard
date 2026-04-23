@@ -6,7 +6,8 @@ import {
 } from 'recharts'
 import type { CardioRecord, DailyHR, DailyMetrics } from './types'
 import type { Granularity } from './analysis'
-import { StatBox, chartMargin, COLORS, shortDate, Legend, AISummaryButton, TabHeader, useChartTheme, ChartTooltip } from './ui'
+import { withProjection } from './analysis'
+import { StatBox, chartMargin, COLORS, shortDate, Legend, AISummaryButton, ProjectionToggleButton, useProjectionToggle, TabHeader, useChartTheme, ChartTooltip } from './ui'
 
 // VO2 Max fitness age estimation (ACSM normative data for males)
 const VO2_AGE_TABLE = [
@@ -305,6 +306,28 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
 
   const hasData = vo2Data.length > 0 || walkingHRData.length > 0 || hrRecoveryData.length > 0 || weeklyHRRange.length > 0
 
+  // Projections
+  const vo2Proj = useMemo(() => withProjection(vo2WithAge, { valueKey: 'value', min: 0 }), [vo2WithAge])
+  const hrHrvProj = useMemo(() => {
+    const hrProj = withProjection(hrHrvOverlay as unknown as Record<string, unknown>[], { dateKey: 'week', valueKey: 'restingHR', granularity: 'weekly', min: 0 })
+    const hrvProj = withProjection(hrHrvOverlay as unknown as Record<string, unknown>[], { dateKey: 'week', valueKey: 'hrv', granularity: 'weekly', min: 0 })
+    if (!hrProj.canProject && !hrvProj.canProject) return { data: hrHrvOverlay as unknown as Record<string, unknown>[], canProject: false }
+    const hrvByWeek = new Map(hrvProj.data.map(d => [d.week as string, d.hrvProjection as number | undefined]))
+    const merged = hrProj.data.map(d => ({ ...d, hrvProjection: hrvByWeek.get(d.week as string) ?? null }))
+    return { data: merged, canProject: true }
+  }, [hrHrvOverlay])
+  const walkingHRProj = useMemo(() => withProjection(weeklyWalkingHR, { dateKey: 'week', valueKey: 'value', granularity: 'weekly', min: 0 }), [weeklyWalkingHR])
+  const recoveryProj = useMemo(() => withProjection(hrRecoveryData, { valueKey: 'value', min: 0 }), [hrRecoveryData])
+  const hrRangeProj = useMemo(() => withProjection(weeklyHRRange, { dateKey: 'week', valueKey: 'avg', granularity: 'weekly', min: 0 }), [weeklyHRRange])
+  const efficiencyProj = useMemo(() => withProjection(efficiencyData, { dateKey: 'week', valueKey: 'ratio', granularity: 'weekly', min: 0 }), [efficiencyData])
+
+  const vo2Projection = useProjectionToggle(vo2Proj.canProject)
+  const hrHrvProjection = useProjectionToggle(hrHrvProj.canProject)
+  const walkingHRProjection = useProjectionToggle(walkingHRProj.canProject)
+  const recoveryProjection = useProjectionToggle(recoveryProj.canProject)
+  const hrRangeProjection = useProjectionToggle(hrRangeProj.canProject)
+  const efficiencyProjection = useProjectionToggle(efficiencyProj.canProject)
+
   if (!hasData) {
     return <div className="text-zinc-500 text-center py-20">No cardiovascular data found.</div>
   }
@@ -388,11 +411,14 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
               <h3 className="text-sm font-medium text-zinc-300">VO2 Max & Fitness Age</h3>
               <p className="text-xs text-zinc-500 mt-0.5">Higher VO2 Max = lower fitness age. Based on ACSM normative data.</p>
             </div>
-            <AISummaryButton title="VO2 Max & Fitness Age" description="Higher VO2 Max = lower fitness age" chartData={vo2WithAge} />
+            <div className="flex items-center gap-1 shrink-0">
+              <ProjectionToggleButton projection={vo2Projection} />
+              <AISummaryButton title="VO2 Max & Fitness Age" description="Higher VO2 Max = lower fitness age" chartData={vo2WithAge} />
+            </div>
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-              <AreaChart margin={chartMargin} data={vo2WithAge}>
+              <AreaChart margin={chartMargin} data={vo2Projection.enabled ? vo2Proj.data : vo2WithAge}>
                 <defs>
                   <linearGradient id="vo2Grad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={COLORS.green} stopOpacity={0.3} />
@@ -405,18 +431,23 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <YAxis yAxisId="age" orientation="right" reversed domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                 <Tooltip content={<ChartTooltip formatter={(value, name) => {
                     if (name === 'value') return [`${value} mL/kg/min`, 'VO2 Max']
+                    if (name === 'valueProjection') return [`${value} mL/kg/min`, 'VO2 Max (forecast)']
                     return [`${value} yrs`, 'Fitness Age']
                   }} />} />
                 <ReferenceLine yAxisId="age" y={age} stroke="#71717a" strokeDasharray="3 3" label={{ value: `Age ${age}`, position: 'right', fill: ct.tick, fontSize: 10 }} />
                 <Area yAxisId="vo2" type="monotone" dataKey="value" stroke={COLORS.green} fill="url(#vo2Grad)" strokeWidth={2} dot={{ r: 2 }} />
                 <Line yAxisId="age" type="monotone" dataKey="fitnessAge" stroke={COLORS.purple} strokeWidth={1.5} strokeDasharray="4 4" dot={{ r: 1.5 }} />
+                {vo2Projection.enabled && (
+                  <Line yAxisId="vo2" type="monotone" dataKey="valueProjection" stroke={COLORS.green} strokeWidth={2} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex gap-4 justify-center mt-2">
+          <div className="flex gap-4 justify-center mt-2 flex-wrap">
             <Legend color={COLORS.green} label="VO2 Max" />
             <Legend color={COLORS.purple} label="Fitness Age" dashed />
             <Legend color="#71717a" label={`Actual Age (${age})`} dashed />
+            {vo2Projection.enabled && <Legend color={COLORS.green} label="Forecast" dashed />}
           </div>
         </div>
       )}
@@ -429,11 +460,14 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
               <h3 className="text-sm font-medium text-zinc-300">Resting HR & HRV</h3>
               <p className="text-xs text-zinc-500 mt-0.5">These typically move in opposite directions — lower resting HR with higher HRV signals good cardiovascular fitness.</p>
             </div>
-            <AISummaryButton title="Resting HR & HRV" description="Dual axis: lower HR + higher HRV = better fitness" chartData={hrHrvOverlay} />
+            <div className="flex items-center gap-1 shrink-0">
+              <ProjectionToggleButton projection={hrHrvProjection} />
+              <AISummaryButton title="Resting HR & HRV" description="Dual axis: lower HR + higher HRV = better fitness" chartData={hrHrvOverlay} />
+            </div>
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-              <ComposedChart margin={chartMargin} data={hrHrvOverlay}>
+              <ComposedChart margin={chartMargin} data={hrHrvProjection.enabled ? hrHrvProj.data : hrHrvOverlay}>
                 <defs>
                   <linearGradient id="restHRGrad2" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={COLORS.red} stopOpacity={0.2} />
@@ -452,20 +486,29 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <ReferenceArea yAxisId="hr" y1={50} y2={70} fill="#22c55e" fillOpacity={0.05} />
                 <Tooltip content={<ChartTooltip formatter={(value, name) => {
                     if (name === 'restingHR') return [`${value} bpm`, 'Resting HR']
+                    if (name === 'restingHRProjection') return [`${value} bpm`, 'Resting HR (forecast)']
+                    if (name === 'hrvProjection') return [`${value} ms`, 'HRV (forecast)']
                     return [`${value} ms`, 'HRV']
                   }} />} />
                 <Area yAxisId="hr" type="monotone" dataKey="restingHR" stroke={COLORS.red} fill="url(#restHRGrad2)" strokeWidth={1.5} dot={false} connectNulls />
                 <Area yAxisId="hrv" type="monotone" dataKey="hrv" stroke={COLORS.purple} fill="url(#hrvGrad2)" strokeWidth={1.5} dot={false} connectNulls />
+                {hrHrvProjection.enabled && (
+                  <>
+                    <Line yAxisId="hr" type="monotone" dataKey="restingHRProjection" stroke={COLORS.red} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                    <Line yAxisId="hrv" type="monotone" dataKey="hrvProjection" stroke={COLORS.purple} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  </>
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex gap-4 justify-center mt-2">
+          <div className="flex gap-4 justify-center mt-2 flex-wrap">
             <Legend color={COLORS.red} label="Resting HR (bpm)" />
             <Legend color={COLORS.purple} label="HRV (ms)" />
             <div className="flex items-center gap-1.5 text-xs text-zinc-600">
               <div className="w-4 h-2 rounded-sm bg-green-500/10 border border-green-500/20" />
               Normal HR range
             </div>
+            {hrHrvProjection.enabled && <Legend color="#a1a1aa" label="Forecast" dashed />}
           </div>
         </div>
       )}
@@ -479,11 +522,14 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <h3 className="text-sm font-medium text-zinc-300">Walking Heart Rate</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">Weekly average. A declining trend indicates improving fitness.</p>
               </div>
-              <AISummaryButton title="Walking Heart Rate" description="Weekly average walking HR" chartData={weeklyWalkingHR} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={walkingHRProjection} />
+                <AISummaryButton title="Walking Heart Rate" description="Weekly average walking HR" chartData={weeklyWalkingHR} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={weeklyWalkingHR}>
+                <AreaChart margin={chartMargin} data={walkingHRProjection.enabled ? walkingHRProj.data : weeklyWalkingHR}>
                   <defs>
                     <linearGradient id="walkingHRGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={COLORS.orange} stopOpacity={0.3} />
@@ -493,8 +539,11 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} bpm`, 'Walking HR']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} bpm`, name === 'valueProjection' ? 'Forecast' : 'Walking HR']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.orange} fill="url(#walkingHRGrad)" strokeWidth={1.5} dot={false} />
+                  {walkingHRProjection.enabled && (
+                    <Line type="monotone" dataKey="valueProjection" stroke={COLORS.orange} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -509,11 +558,14 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <h3 className="text-sm font-medium text-zinc-300">Heart Rate Recovery</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">BPM drop in first minute after exercise. The trend line shows your recovery direction.</p>
               </div>
-              <AISummaryButton title="Heart Rate Recovery" description="BPM drop after exercise with trend" chartData={hrRecoveryData} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={recoveryProjection} />
+                <AISummaryButton title="Heart Rate Recovery" description="BPM drop after exercise with trend" chartData={hrRecoveryData} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <ComposedChart margin={chartMargin} data={hrRecoveryData}>
+                <ComposedChart margin={chartMargin} data={recoveryProjection.enabled ? recoveryProj.data : hrRecoveryData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                   {/* Reference zones */}
                   <ReferenceArea y1={20} y2={60} fill="#22c55e" fillOpacity={0.04} label={{ value: 'Good', position: 'insideTopLeft', fill: '#22c55e40', fontSize: 10 }} />
@@ -522,9 +574,12 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                   <ReferenceLine y={12} stroke="#ef4444" strokeDasharray="3 3" strokeOpacity={0.3} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} bpm`, name === 'trend' ? 'Trend' : 'Recovery']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} bpm`, name === 'trend' ? 'Trend' : name === 'valueProjection' ? 'Forecast' : 'Recovery']} />} />
                   <Scatter dataKey="value" fill={COLORS.blue} opacity={0.6} />
                   <Line type="monotone" dataKey="trend" stroke={COLORS.cyan} strokeWidth={2} dot={false} />
+                  {recoveryProjection.enabled && (
+                    <Line type="monotone" dataKey="valueProjection" stroke={COLORS.blue} strokeWidth={2} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -540,11 +595,14 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
               <h3 className="text-sm font-medium text-zinc-300">Heart Rate Range</h3>
               <p className="text-xs text-zinc-500 mt-0.5">Weekly min, average, and max. A wider band shows more cardiac flexibility.</p>
             </div>
-            <AISummaryButton title="Heart Rate Range" description="Weekly min, avg, max HR band" chartData={weeklyHRRange} />
+            <div className="flex items-center gap-1 shrink-0">
+              <ProjectionToggleButton projection={hrRangeProjection} />
+              <AISummaryButton title="Heart Rate Range" description="Weekly min, avg, max HR band" chartData={weeklyHRRange} />
+            </div>
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-              <AreaChart margin={chartMargin} data={weeklyHRRange}>
+              <AreaChart margin={chartMargin} data={hrRangeProjection.enabled ? hrRangeProj.data : weeklyHRRange}>
                 <defs>
                   <linearGradient id="hrBandGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#ef4444" stopOpacity={0.15} />
@@ -554,17 +612,21 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} bpm`, name === 'max' ? 'Max HR' : name === 'min' ? 'Min HR' : 'Avg HR']} />} />
+                <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} bpm`, name === 'max' ? 'Max HR' : name === 'min' ? 'Min HR' : name === 'avgProjection' ? 'Avg HR (forecast)' : 'Avg HR']} />} />
                 <Area type="monotone" dataKey="max" stroke="#ef4444" fill="url(#hrBandGrad)" strokeWidth={1} strokeOpacity={0.5} dot={false} />
                 <Area type="monotone" dataKey="min" stroke="#3b82f6" fill="#101014" strokeWidth={1} strokeOpacity={0.5} dot={false} />
                 <Line type="monotone" dataKey="avg" stroke="#f97316" strokeWidth={1.5} dot={false} />
+                {hrRangeProjection.enabled && (
+                  <Line type="monotone" dataKey="avgProjection" stroke="#f97316" strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex gap-4 justify-center mt-2">
+          <div className="flex gap-4 justify-center mt-2 flex-wrap">
             <Legend color="#ef4444" label="Max HR" />
             <Legend color="#f97316" label="Avg HR" />
             <Legend color="#3b82f6" label="Min HR" />
+            {hrRangeProjection.enabled && <Legend color="#f97316" label="Avg HR (forecast)" dashed />}
           </div>
         </div>
       )}
@@ -577,11 +639,14 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
               <h3 className="text-sm font-medium text-zinc-300">Cardiac Efficiency</h3>
               <p className="text-xs text-zinc-500 mt-0.5">Walking HR divided by resting HR. A lower ratio means your heart handles exertion more efficiently.</p>
             </div>
-            <AISummaryButton title="Cardiac Efficiency" description="Walking HR / Resting HR ratio — lower is better" chartData={efficiencyData} />
+            <div className="flex items-center gap-1 shrink-0">
+              <ProjectionToggleButton projection={efficiencyProjection} />
+              <AISummaryButton title="Cardiac Efficiency" description="Walking HR / Resting HR ratio — lower is better" chartData={efficiencyData} />
+            </div>
           </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-              <AreaChart margin={chartMargin} data={efficiencyData}>
+              <AreaChart margin={chartMargin} data={efficiencyProjection.enabled ? efficiencyProj.data : efficiencyData}>
                 <defs>
                   <linearGradient id="effGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={COLORS.cyan} stopOpacity={0.3} />
@@ -591,9 +656,12 @@ export default function Cardio({ cardioRecords, dailyHR, metrics, dob, cutoffDat
                 <CartesianGrid strokeDasharray="3 3" stroke={ct.grid} />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
-                <Tooltip content={<ChartTooltip formatter={(v) => [`${v}x`, 'Efficiency Ratio']} />} />
+                <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v}x`, name === 'ratioProjection' ? 'Forecast' : 'Efficiency Ratio']} />} />
                 <ReferenceArea y1={1.4} y2={1.7} fill="#22c55e" fillOpacity={0.05} />
                 <Area type="monotone" dataKey="ratio" stroke={COLORS.cyan} fill="url(#effGrad)" strokeWidth={1.5} dot={false} />
+                {efficiencyProjection.enabled && (
+                  <Line type="monotone" dataKey="ratioProjection" stroke={COLORS.cyan} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </div>

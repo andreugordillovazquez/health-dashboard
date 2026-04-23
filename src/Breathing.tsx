@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import {
   ResponsiveContainer, XAxis, YAxis, Tooltip,
-  CartesianGrid, AreaChart, Area, ReferenceLine, ScatterChart, Scatter, ZAxis,
+  CartesianGrid, AreaChart, Area, Line, ReferenceLine, ScatterChart, Scatter, ZAxis,
 } from 'recharts'
 import type { DailyBreathing } from './types'
-import { StatBox, AISummaryButton, TabHeader, ChartTooltip, useChartTheme, chartMargin, COLORS, shortDate, avg } from './ui'
+import { withProjection } from './analysis'
+import { StatBox, AISummaryButton, ProjectionToggleButton, useProjectionToggle, TabHeader, ChartTooltip, useChartTheme, chartMargin, COLORS, shortDate, avg } from './ui'
 
 // Apple's thresholds for breathing disturbances
 // < 5: not elevated, 5-14.9: mildly elevated, 15-29.9: moderately elevated, >= 30: severely elevated
@@ -114,6 +115,15 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
 
   const hasData = weeklyDisturbances.length > 0 || weeklyRespRate.length > 0 || weeklySpo2.length > 0
 
+  // Projections
+  const disturbancesProj = useMemo(() => withProjection(weeklyDisturbances, { dateKey: 'week', valueKey: 'value', granularity: 'weekly', min: 0 }), [weeklyDisturbances])
+  const respRateProj = useMemo(() => withProjection(weeklyRespRate, { dateKey: 'week', valueKey: 'value', granularity: 'weekly', min: 0 }), [weeklyRespRate])
+  const spo2Proj = useMemo(() => withProjection(weeklySpo2, { dateKey: 'week', valueKey: 'value', granularity: 'weekly', min: 0, max: 100 }), [weeklySpo2])
+
+  const disturbancesProjection = useProjectionToggle(disturbancesProj.canProject)
+  const respRateProjection = useProjectionToggle(respRateProj.canProject)
+  const spo2Projection = useProjectionToggle(spo2Proj.canProject)
+
   if (!hasData) {
     return <div className="text-zinc-500 text-center py-20">No breathing data found.</div>
   }
@@ -178,11 +188,14 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
               <h3 className="text-sm font-medium text-zinc-300">Breathing Disturbances (weekly avg)</h3>
               <p className="text-xs text-zinc-500 mt-0.5">Events per hour during sleep. Under 5/hr is normal. Elevated may indicate sleep apnea.</p>
             </div>
-            <AISummaryButton title="Breathing Disturbances (weekly avg)" description="Events per hour during sleep. Under 5/hr is normal. Elevated may indicate sleep apnea." chartData={weeklyDisturbances} />
+            <div className="flex items-center gap-1 shrink-0">
+              <ProjectionToggleButton projection={disturbancesProjection} />
+              <AISummaryButton title="Breathing Disturbances (weekly avg)" description="Events per hour during sleep. Under 5/hr is normal. Elevated may indicate sleep apnea." chartData={weeklyDisturbances} />
+            </div>
           </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-              <AreaChart margin={chartMargin} data={weeklyDisturbances}>
+              <AreaChart margin={chartMargin} data={disturbancesProjection.enabled ? disturbancesProj.data : weeklyDisturbances}>
                 <defs>
                   <linearGradient id="distGrad2" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={COLORS.red} stopOpacity={0.3} />
@@ -194,8 +207,11 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
                 <YAxis domain={[0, 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                 <ReferenceLine y={5} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Mild', position: 'right', fill: ct.tick, fontSize: 10 }} />
                 <ReferenceLine y={15} stroke={COLORS.red} strokeDasharray="3 3" label={{ value: 'Moderate', position: 'right', fill: ct.tick, fontSize: 10 }} />
-                <Tooltip content={<ChartTooltip formatter={(v) => [`${v}/hr`, 'Disturbances']} />} />
+                <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v}/hr`, name === 'valueProjection' ? 'Forecast' : 'Disturbances']} />} />
                 <Area type="monotone" dataKey="value" stroke={COLORS.red} fill="url(#distGrad2)" strokeWidth={1.5} dot={false} />
+                {disturbancesProjection.enabled && (
+                  <Line type="monotone" dataKey="valueProjection" stroke={COLORS.red} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -211,11 +227,14 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
                 <h3 className="text-sm font-medium text-zinc-300">Respiratory Rate (weekly avg)</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">Normal adult: 12-20 breaths/min at rest</p>
               </div>
-              <AISummaryButton title="Respiratory Rate (weekly avg)" description="Normal adult: 12-20 breaths/min at rest" chartData={weeklyRespRate} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={respRateProjection} />
+                <AISummaryButton title="Respiratory Rate (weekly avg)" description="Normal adult: 12-20 breaths/min at rest" chartData={weeklyRespRate} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={weeklyRespRate}>
+                <AreaChart margin={chartMargin} data={respRateProjection.enabled ? respRateProj.data : weeklyRespRate}>
                   <defs>
                     <linearGradient id="respRateGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={COLORS.blue} stopOpacity={0.3} />
@@ -227,8 +246,11 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={12} stroke="#71717a" strokeDasharray="3 3" />
                   <ReferenceLine y={20} stroke="#71717a" strokeDasharray="3 3" />
-                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v} br/min`, 'Respiratory Rate']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v} br/min`, name === 'valueProjection' ? 'Forecast' : 'Respiratory Rate']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.blue} fill="url(#respRateGrad)" strokeWidth={1.5} dot={false} />
+                  {respRateProjection.enabled && (
+                    <Line type="monotone" dataKey="valueProjection" stroke={COLORS.blue} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -243,11 +265,14 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
                 <h3 className="text-sm font-medium text-zinc-300">Blood Oxygen (weekly avg)</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">Normal: 95-100%. Below 90% is concerning.</p>
               </div>
-              <AISummaryButton title="Blood Oxygen (weekly avg)" description="Normal: 95-100%. Below 90% is concerning." chartData={weeklySpo2} />
+              <div className="flex items-center gap-1 shrink-0">
+                <ProjectionToggleButton projection={spo2Projection} />
+                <AISummaryButton title="Blood Oxygen (weekly avg)" description="Normal: 95-100%. Below 90% is concerning." chartData={weeklySpo2} />
+              </div>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={1}>
-                <AreaChart margin={chartMargin} data={weeklySpo2}>
+                <AreaChart margin={chartMargin} data={spo2Projection.enabled ? spo2Proj.data : weeklySpo2}>
                   <defs>
                     <linearGradient id="spo2Grad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={COLORS.green} stopOpacity={0.3} />
@@ -258,8 +283,11 @@ export default function Breathing({ dailyBreathing, cutoffDate }: Props) {
                   <XAxis dataKey="week" tick={{ fontSize: 10, fill: ct.tick }} tickFormatter={shortDate} />
                   <YAxis domain={['auto', 100]} tick={{ fontSize: 10, fill: ct.tick }} />
                   <ReferenceLine y={95} stroke="#71717a" strokeDasharray="3 3" />
-                  <Tooltip content={<ChartTooltip formatter={(v) => [`${v}%`, 'SpO2']} />} />
+                  <Tooltip content={<ChartTooltip formatter={(v, name) => [`${v}%`, name === 'valueProjection' ? 'Forecast' : 'SpO2']} />} />
                   <Area type="monotone" dataKey="value" stroke={COLORS.green} fill="url(#spo2Grad)" strokeWidth={1.5} dot={false} />
+                  {spo2Projection.enabled && (
+                    <Line type="monotone" dataKey="valueProjection" stroke={COLORS.green} strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.7} dot={false} connectNulls isAnimationActive={false} />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
