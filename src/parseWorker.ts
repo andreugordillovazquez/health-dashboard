@@ -127,10 +127,12 @@ async function parseFile(file: File) {
 
   const CHUNK_SIZE = 64 * 1024 * 1024
   let remainder = ''
+  const totalBytes = file.size
 
   for (let offset = 0; offset < file.size; offset += CHUNK_SIZE) {
     const slice = file.slice(offset, offset + CHUNK_SIZE)
     const text = remainder + await slice.text()
+    const bytesRead = Math.min(offset + CHUNK_SIZE, totalBytes)
 
     const splitPoint = text.lastIndexOf('<')
     const processText = splitPoint > 0 ? text.substring(0, splitPoint) : text
@@ -422,7 +424,7 @@ async function parseFile(file: File) {
 
       recordCount++
       if (recordCount % 500000 === 0) {
-        self.postMessage({ type: 'progress', recordsProcessed: recordCount, currentDate: day } as ParseProgress)
+        self.postMessage({ type: 'progress', recordsProcessed: recordCount, currentDate: day, bytesRead, totalBytes } as ParseProgress)
       }
     }
 
@@ -520,6 +522,10 @@ async function parseFile(file: File) {
         standGoal: parseFloat(extractAttr(attrs, 'appleStandHoursGoal') || '12'),
       })
     }
+
+    // Always emit progress at the end of a chunk so the bar advances even when
+    // record density varies and we don't hit the 500k-record boundary.
+    self.postMessage({ type: 'progress', recordsProcessed: recordCount, currentDate: '', bytesRead, totalBytes } as ParseProgress)
   }
 
   // Add unspecified sleep only for days without granular stage data

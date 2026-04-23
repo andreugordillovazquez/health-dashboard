@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Upload, FolderOpen, Lock, Watch, Apple } from 'lucide-react'
+import { Upload, FolderOpen, Lock, Watch, Apple, AlertCircle } from 'lucide-react'
 import type { HealthData, WorkerMessage, DailyMetrics } from './types'
 import Dashboard from './Dashboard'
 import { parseGarminExport } from './garminParser'
+import { ProgressBar } from './ui'
 
 const CACHE_DB = 'health-dashboard-cache'
 const CACHE_STORE = 'data'
@@ -94,9 +95,71 @@ type SourceMode = 'apple' | 'garmin'
 type AppState =
   | { phase: 'upload' }
   | { phase: 'loading-cache' }
-  | { phase: 'parsing'; progress: number; currentDate: string }
+  | { phase: 'parsing'; progress: number; currentDate: string; bytesRead: number; totalBytes: number; startedAt: number }
   | { phase: 'ready'; data: HealthData }
   | { phase: 'error'; message: string }
+
+function classifyError(message: string): { title: string; hint: string; showExportSteps?: boolean } {
+  const m = message.toLowerCase()
+  if (m.includes('no apple health export') || m.includes('export.xml')) {
+    return {
+      title: "Couldn't find an Apple Health export in that folder.",
+      hint: 'Make sure you unzipped the export and selected the folder that contains export.xml (not the zip itself).',
+      showExportSteps: true,
+    }
+  }
+  if (m.includes('no garmin')) {
+    return {
+      title: "Couldn't find Garmin data in that folder.",
+      hint: 'Select the unzipped export folder — the one that contains the DI_CONNECT directory with .json files.',
+      showExportSteps: true,
+    }
+  }
+  if (m.includes('quota') || m.includes('exceeded')) {
+    return {
+      title: 'Your browser ran out of storage for the cached parse.',
+      hint: 'Free up some space in this site’s storage and try again, or use a different browser.',
+    }
+  }
+  if (m.includes('failed to parse garmin')) {
+    return {
+      title: "Couldn't parse the Garmin export.",
+      hint: 'Some files in the export may be corrupted or in an unexpected format. Try re-downloading the export from Garmin.',
+    }
+  }
+  return {
+    title: 'Something went wrong while parsing your data.',
+    hint: message,
+  }
+}
+
+function formatETA(ms: number): string {
+  if (!isFinite(ms) || ms <= 0) return '—'
+  const s = Math.round(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const rem = s % 60
+  return rem === 0 ? `${m}m` : `${m}m ${rem}s`
+}
+
+function UploadSkeleton() {
+  return (
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6" aria-hidden>
+      <div className="max-w-md w-full space-y-10">
+        <div className="text-center space-y-3">
+          <div className="h-7 w-52 mx-auto bg-zinc-900 rounded-md animate-pulse" />
+          <div className="h-3 w-40 mx-auto bg-zinc-900 rounded-md animate-pulse opacity-70" />
+          <div className="h-3 w-64 mx-auto bg-zinc-900 rounded-md animate-pulse opacity-50" />
+        </div>
+        <div className="flex gap-3 justify-center">
+          <div className="h-11 w-36 bg-zinc-900 rounded-xl animate-pulse" />
+          <div className="h-11 w-36 bg-zinc-900 rounded-xl animate-pulse opacity-70" />
+        </div>
+        <div className="rounded-2xl bg-zinc-900 h-52 animate-pulse" />
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
   const [state, setState] = useState<AppState>({ phase: 'loading-cache' })
@@ -117,14 +180,22 @@ export default function App() {
   }, [])
 
   const handleFile = useCallback((file: File) => {
-    setState({ phase: 'parsing', progress: 0, currentDate: '' })
+    const startedAt = performance.now()
+    setState({ phase: 'parsing', progress: 0, currentDate: '', bytesRead: 0, totalBytes: file.size, startedAt })
 
     const worker = new Worker(new URL('./parseWorker.ts', import.meta.url), { type: 'module' })
 
     worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
       const msg = e.data
       if (msg.type === 'progress') {
-        setState({ phase: 'parsing', progress: msg.recordsProcessed, currentDate: msg.currentDate })
+        setState({
+          phase: 'parsing',
+          progress: msg.recordsProcessed,
+          currentDate: msg.currentDate,
+          bytesRead: msg.bytesRead ?? 0,
+          totalBytes: msg.totalBytes ?? file.size,
+          startedAt,
+        })
       } else if (msg.type === 'complete') {
         const dailyMetrics = new Map<string, DailyMetrics>(msg.data.dailyMetrics)
         const healthData: HealthData = {
@@ -172,10 +243,11 @@ export default function App() {
       setState({ phase: 'error', message: 'No Garmin JSON data files found. Make sure you selected the Garmin export folder containing DI_CONNECT.' })
       return
     }
-    setState({ phase: 'parsing', progress: 0, currentDate: 'Processing Garmin data...' })
+    const startedAt = performance.now()
+    setState({ phase: 'parsing', progress: 0, currentDate: 'Processing Garmin data...', bytesRead: 0, totalBytes: 0, startedAt })
     try {
       const data = await parseGarminExport(jsonFiles, (msg) => {
-        setState({ phase: 'parsing', progress: 0, currentDate: msg })
+        setState({ phase: 'parsing', progress: 0, currentDate: msg, bytesRead: 0, totalBytes: 0, startedAt })
       })
       setState({ phase: 'ready', data })
       saveToCache(data)
@@ -238,11 +310,7 @@ export default function App() {
   }
 
   if (state.phase === 'loading-cache') {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
-        <div className="text-zinc-500 text-sm animate-pulse">Loading...</div>
-      </div>
-    )
+    return <UploadSkeleton />
   }
 
   return (
@@ -373,34 +441,70 @@ export default function App() {
           </>
         )}
 
-        {state.phase === 'parsing' && (
-          <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-10 text-center space-y-3">
-            <div className="w-5 h-5 border-2 border-zinc-700 border-t-zinc-300 rounded-full animate-spin mx-auto" />
-            <div>
-              <p className="text-[15px] text-zinc-200">Parsing...</p>
-              <p className="text-zinc-500 text-xs mt-1">
-                {state.progress > 0
-                  ? `${(state.progress / 1000000).toFixed(1)}M records processed`
-                  : state.currentDate || 'Starting...'}
-              </p>
-              {state.currentDate && (
-                <p className="text-zinc-600 text-xs mt-0.5">{state.currentDate}</p>
+        {state.phase === 'parsing' && (() => {
+          const pct = state.totalBytes > 0 ? state.bytesRead / state.totalBytes : 0
+          const elapsed = performance.now() - state.startedAt
+          const rate = state.bytesRead > 0 && elapsed > 0 ? state.bytesRead / elapsed : 0
+          const remaining = rate > 0 && state.totalBytes > 0 ? (state.totalBytes - state.bytesRead) / rate : 0
+          const hasProgress = state.totalBytes > 0
+          return (
+            <div className="rounded-2xl bg-zinc-900 p-8 space-y-5">
+              <div className="flex items-baseline justify-between gap-4">
+                <p className="text-[15px] text-zinc-200">Parsing your data</p>
+                {hasProgress && (
+                  <p className="text-xs text-zinc-500 tabular-nums">
+                    {Math.round(pct * 100)}% · {formatETA(remaining)} left
+                  </p>
+                )}
+              </div>
+              {hasProgress ? (
+                <ProgressBar value={pct} />
+              ) : (
+                <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="h-full w-1/3 bg-green-500 rounded-full animate-pulse" />
+                </div>
               )}
+              <div className="flex items-baseline justify-between gap-4 text-xs tabular-nums">
+                <span className="text-zinc-500">
+                  {state.progress > 0
+                    ? `${(state.progress / 1000000).toFixed(1)}M records`
+                    : 'Starting…'}
+                </span>
+                {state.currentDate && (
+                  <span className="text-zinc-600">{state.currentDate}</span>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
-        {state.phase === 'error' && (
-          <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-8 text-center space-y-4">
-            <p className="text-red-400 text-sm">{state.message}</p>
-            <button
-              onClick={() => setState({ phase: 'upload' })}
-              className="px-4 py-2 bg-zinc-800 rounded-lg text-xs hover:bg-zinc-700 transition-colors"
-            >
-              Try again
-            </button>
-          </div>
-        )}
+        {state.phase === 'error' && (() => {
+          const err = classifyError(state.message)
+          return (
+            <div className="rounded-2xl bg-zinc-900 p-8 space-y-5">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 w-8 h-8 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center">
+                  <AlertCircle size={16} />
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <p className="text-[14px] text-zinc-200">{err.title}</p>
+                  <p className="text-xs text-zinc-500 leading-relaxed">{err.hint}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setState({ phase: 'upload' })}
+                  className="px-4 py-2 bg-zinc-100 text-zinc-900 rounded-lg text-xs font-medium hover:bg-white transition-colors"
+                >
+                  Try again
+                </button>
+                {err.showExportSteps && (
+                  <span className="text-[11px] text-zinc-600">See export steps on the upload screen</span>
+                )}
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

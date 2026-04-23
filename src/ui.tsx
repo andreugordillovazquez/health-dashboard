@@ -1,5 +1,7 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { ResponsiveContainer } from 'recharts'
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react'
 
 // === Colors ===
 export const COLORS = {
@@ -157,27 +159,83 @@ export function StatBox({ label, value, unit, sub, color, trend, sparkData }: {
   sparkData?: number[]
 }) {
   return (
-    <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800">
-      <div className="text-zinc-500 text-xs mb-1">{label}</div>
+    <div className="bg-zinc-900 rounded-xl p-4 transition-colors hover:bg-zinc-800/40">
+      <div className="text-[11px] font-medium tracking-wider uppercase text-zinc-500 mb-1.5">{label}</div>
       <div className="flex items-end justify-between gap-2">
-        <div>
-          <div className="text-2xl font-semibold tracking-tight">
+        <div className="min-w-0">
+          <div className="text-[26px] font-semibold tracking-tight tabular-nums leading-none">
             <span style={{ color }}>{value}</span>
-            {unit && <span className="text-sm text-zinc-500 ml-1">{unit}</span>}
+            {unit && <span className="text-[13px] text-zinc-500 ml-1 font-normal tabular-nums">{unit}</span>}
           </div>
           {trend ? (
-            <div className={`text-xs mt-1 font-medium tabular-nums ${trend.positive ? 'text-green-400' : 'text-red-400'}`}>
-              {trend.direction === 'up' ? '+' : '−'}{trend.changePercent}%
+            <div className={`text-[11px] mt-2 font-medium tabular-nums inline-flex items-center gap-0.5 ${trend.positive ? 'text-green-400' : 'text-red-400'}`}>
+              {trend.direction === 'up' ? <ArrowUpRight size={11} strokeWidth={2.5} /> : <ArrowDownRight size={11} strokeWidth={2.5} />}
+              {trend.changePercent}%
               <span className="text-zinc-600 font-normal ml-1">30d</span>
             </div>
           ) : (
-            sub && <div className="text-zinc-500 text-xs mt-1">{sub}</div>
+            sub && <div className="text-zinc-500 text-[11px] mt-2 tabular-nums">{sub}</div>
           )}
         </div>
         {sparkData && sparkData.length >= 3 && (
           <Sparkline data={sparkData} color={color || (trend?.positive ? '#22c55e' : trend ? '#ef4444' : undefined)} />
         )}
       </div>
+    </div>
+  )
+}
+
+// Skeleton primitives for loading states
+export function SkeletonBlock({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={`bg-zinc-900 rounded-md animate-pulse ${className}`} style={style} />
+}
+
+export function TabSkeleton() {
+  return (
+    <div className="px-4 md:px-6 py-6 space-y-6" aria-hidden>
+      <div className="space-y-2">
+        <SkeletonBlock className="h-5 w-40" />
+        <SkeletonBlock className="h-3 w-64 opacity-60" />
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-zinc-900 rounded-xl p-4 space-y-3">
+            <SkeletonBlock className="h-3 w-16 opacity-60" />
+            <SkeletonBlock className="h-7 w-24" />
+            <SkeletonBlock className="h-3 w-12 opacity-40" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="bg-zinc-900 rounded-xl p-4 space-y-3">
+            <SkeletonBlock className="h-3.5 w-32 opacity-60" />
+            <SkeletonBlock className="h-56 w-full opacity-50" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function EmptyState({ icon, title, hint }: { icon?: ReactNode; title: string; hint?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-24 px-6">
+      {icon && <div className="text-zinc-600 mb-4">{icon}</div>}
+      <p className="text-sm text-zinc-300">{title}</p>
+      {hint && <p className="text-xs text-zinc-500 mt-1.5 max-w-sm leading-relaxed">{hint}</p>}
+    </div>
+  )
+}
+
+export function ProgressBar({ value, max = 1 }: { value: number; max?: number }) {
+  const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0
+  return (
+    <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+      <div
+        className="h-full bg-green-500 rounded-full transition-[width] duration-150 ease-out"
+        style={{ width: `${pct * 100}%` }}
+      />
     </div>
   )
 }
@@ -355,7 +413,7 @@ export const ChartCard = memo(function ChartCard({ title, description, tall, cha
   title: string; description?: string; tall?: boolean; chartData?: unknown[]; children: React.ReactNode
 }) {
   return (
-    <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
+    <div className="bg-zinc-900 rounded-xl p-4 transition-colors duration-150 hover:bg-zinc-800/40">
       <div className="flex items-start justify-between mb-1">
         <div>
           <h3 className="text-sm font-medium text-zinc-300">{title}</h3>
@@ -397,7 +455,7 @@ export function SectionHeader({ children }: { children: string }) {
 export function TabHeader({ title, description }: { title: string; description: string }) {
   return (
     <div className="mb-6">
-      <h1 className="text-lg font-semibold text-zinc-100 tracking-tight">{title}</h1>
+      <h1 className="text-[22px] font-semibold text-zinc-100 tracking-tight">{title}</h1>
       <p className="text-xs text-zinc-500 mt-1 leading-relaxed max-w-2xl">{description}</p>
     </div>
   )

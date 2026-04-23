@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { computeTrends, computeExtraTrends, groupedAverage, workoutSummary, monthlyWorkouts } from './analysis'
 import type { ExtraTrendInput } from './analysis'
-import { COLORS, chartMargin, StatBox, ChartCard, SectionHeader, TabHeader, ChartTooltip, shortDateCompact, shortMonth, fmt, humanizeWorkoutType, useChartTheme } from './ui'
+import { COLORS, chartMargin, StatBox, ChartCard, SectionHeader, TabHeader, ChartTooltip, shortDateCompact, shortMonth, fmt, humanizeWorkoutType, useChartTheme, TabSkeleton, EmptyState } from './ui'
 
 const TrainingViewer = lazy(() => import('./TrainingViewer'))
 const SleepAnalysis = lazy(() => import('./SleepAnalysis'))
@@ -39,7 +39,7 @@ type TimeRange = '1w' | '3m' | '6m' | '1y' | 'all'
 type Granularity = 'daily' | 'weekly' | 'monthly'
 type Tab = 'overview' | 'score' | 'anomalies' | 'insights' | 'records' | 'yearly' | 'calendar' | 'cardio' | 'body' | 'sleep' | 'menstrual' | 'daylight' | 'audio' | 'correlations' | 'trainings' | 'compare' | 'heatmap' | 'garmin-training' | 'mobility' | 'running' | 'load'
 
-const Loading = <div className="text-zinc-400 dark:text-zinc-400 animate-pulse py-20 text-center">Loading...</div>
+const Loading = <TabSkeleton />
 
 const GROUP_LABELS: Record<number, string> = {
   1: 'Dashboard',
@@ -117,6 +117,35 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
+
+  // Idle-prefetch likely-next tab chunks so cold switches feel instant.
+  useEffect(() => {
+    const prefetch = () => {
+      const loaders: Record<string, () => Promise<unknown>> = {
+        score: () => import('./HealthScoreView'),
+        cardio: () => import('./Cardio'),
+        sleep: () => import('./SleepAnalysis'),
+        body: () => import('./BodyComposition'),
+        records: () => import('./PersonalRecords'),
+        calendar: () => import('./CalendarHeatmap'),
+        trainings: () => import('./TrainingViewer'),
+      }
+      // Map the current tab to its most likely neighbors.
+      const neighbors: Record<string, string[]> = {
+        overview: ['score', 'cardio'],
+        score: ['cardio', 'sleep'],
+        cardio: ['body', 'sleep'],
+        body: ['cardio', 'sleep'],
+        sleep: ['cardio', 'body'],
+        records: ['calendar', 'cardio'],
+      }
+      const targets = neighbors[tab] ?? ['score', 'cardio']
+      for (const key of targets) loaders[key]?.()
+    }
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number }).requestIdleCallback
+    if (ric) ric(prefetch, { timeout: 2000 })
+    else setTimeout(prefetch, 500)
+  }, [tab])
   const hasGpx = data.gpxFiles.size > 0
   const hasSleep = data.sleepRecords.length > 0
   const hasBody = data.bodyRecords.length > 0
@@ -295,7 +324,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
       {/* Desktop sidebar */}
       <aside
         style={{ width: sidebarOpen ? 176 : 48 }}
-        className="hidden md:flex fixed top-0 left-0 h-screen border-r border-zinc-800 bg-zinc-950 flex-col z-[100] overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[width]"
+        className="hidden md:flex fixed top-0 left-0 h-screen border-r border-zinc-800 bg-zinc-950 flex-col z-[100] overflow-hidden transition-[width] duration-150 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[width]"
       >
         {/* Collapse toggle */}
         <div className="flex items-center px-2 py-3 min-h-[48px]">
@@ -305,7 +334,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           >
             {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
-          <span className={`ml-1 text-[11px] font-semibold tracking-wider uppercase text-zinc-500 whitespace-nowrap transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>Health</span>
+          <span className={`ml-1 text-[11px] font-semibold tracking-wider uppercase text-zinc-500 whitespace-nowrap transition-opacity duration-150 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>Health</span>
         </div>
 
         {/* Nav items */}
@@ -316,7 +345,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
             return (
               <Fragment key={t.key}>
                 {(isNewGroup || isFirstItem) && (
-                  <div className={`overflow-hidden whitespace-nowrap transition-all duration-300 px-2 ${sidebarOpen ? 'opacity-100' : 'max-h-0 opacity-0'} ${isNewGroup ? 'pt-3 pb-1' : 'pb-1'}`}>
+                  <div className={`overflow-hidden whitespace-nowrap transition-all duration-150 px-2 ${sidebarOpen ? 'opacity-100' : 'max-h-0 opacity-0'} ${isNewGroup ? 'pt-3 pb-1' : 'pb-1'}`}>
                     <span className="text-[10px] font-medium tracking-wider uppercase text-zinc-600">{GROUP_LABELS[isFirstItem ? visibleTabs[0].group : t.group]}</span>
                   </div>
                 )}
@@ -327,12 +356,12 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                   onClick={() => setTab(t.key)}
                   className={`group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition-colors duration-150 ${
                     tab === t.key
-                      ? 'bg-zinc-800 text-white'
+                      ? "text-white before:content-[''] before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[2px] before:bg-green-500 before:rounded-r"
                       : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50'
                   }`}
                 >
-                  <span className="shrink-0">{t.icon}</span>
-                  <span className={`text-[13px] whitespace-nowrap transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>{t.label}</span>
+                  <span className={`shrink-0 ${tab === t.key ? 'text-green-400' : ''}`}>{t.icon}</span>
+                  <span className={`text-[13px] whitespace-nowrap transition-opacity duration-150 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>{t.label}</span>
                   <span className={`absolute left-full ml-2 px-2.5 py-1 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 whitespace-nowrap pointer-events-none shadow-lg z-50 transition-opacity duration-150 ${sidebarOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
                     {t.label}
                   </span>
@@ -349,7 +378,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
             className="group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors duration-150"
           >
             {theme === 'dark' ? <SunMedium size={16} className="shrink-0" /> : <MoonStar size={16} className="shrink-0" />}
-            <span className={`text-[13px] whitespace-nowrap transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            <span className={`text-[13px] whitespace-nowrap transition-opacity duration-150 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
             <span className={`absolute left-full ml-2 px-2.5 py-1 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 whitespace-nowrap pointer-events-none shadow-lg z-50 transition-opacity duration-150 ${sidebarOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
               {theme === 'dark' ? 'Light mode' : 'Dark mode'}
             </span>
@@ -359,7 +388,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
             className="group relative w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors duration-150"
           >
             <Upload size={16} className="shrink-0" />
-            <span className={`text-[13px] whitespace-nowrap transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>New import</span>
+            <span className={`text-[13px] whitespace-nowrap transition-opacity duration-150 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}>New import</span>
             <span className={`absolute left-full ml-2 px-2.5 py-1 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 whitespace-nowrap pointer-events-none shadow-lg z-50 transition-opacity duration-150 ${sidebarOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
               New import
             </span>
@@ -410,7 +439,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                   key={g}
                   onClick={() => setGranularity(g)}
                   className={`px-2.5 py-1 text-xs rounded-md transition-colors capitalize ${
-                    granularity === g ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    granularity === g ? 'bg-green-500/15 text-green-400 ring-1 ring-green-500/25' : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
                   {g.charAt(0).toUpperCase() + g.slice(1, 3)}
@@ -430,7 +459,7 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
                     else setGranularity('weekly')
                   }}
                   className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                    range === r ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    range === r ? 'bg-green-500/15 text-green-400 ring-1 ring-green-500/25' : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
                   {r.toUpperCase()}
@@ -477,18 +506,22 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           </Suspense>
         )}
 
-        {tab === 'cardio' && hasCardio && (
+        {tab === 'cardio' && (hasCardio ? (
           <Suspense fallback={Loading}>
             <Cardio cardioRecords={data.cardioRecords} dailyHR={data.dailyHR} metrics={allMetrics} dob={data.profile.dob} cutoffDate={cutoffDate} granularity={granularity} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Heart size={28} />} title="No cardio data" hint="Your import doesn't contain heart-rate, VO2 max, or other cardio records. Re-export from Apple Health to include them." />
+        ))}
 
 
-        {tab === 'body' && hasBody && (
+        {tab === 'body' && (hasBody ? (
           <Suspense fallback={Loading}>
             <BodyComposition bodyRecords={data.bodyRecords} cutoffDate={cutoffDate} granularity={granularity} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Scale size={28} />} title="No body composition data" hint="No weight, body fat, or BMI entries were found in this import." />
+        ))}
 
         {tab === 'sleep' && (
           <Suspense fallback={Loading}>
@@ -502,35 +535,45 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           </Suspense>
         )}
 
-        {tab === 'daylight' && hasDaylight && (
+        {tab === 'daylight' && (hasDaylight ? (
           <Suspense fallback={Loading}>
             <Daylight dailyDaylight={data.dailyDaylight} cutoffDate={cutoffDate} granularity={granularity} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Sun size={28} />} title="No daylight data" hint="Time-in-daylight is recorded by Apple Watch Series 6 and later. No entries were found in this import." />
+        ))}
 
-        {tab === 'audio' && hasAudio && (
+        {tab === 'audio' && (hasAudio ? (
           <Suspense fallback={Loading}>
             <AudioExposure dailyAudio={data.dailyAudio} cutoffDate={cutoffDate} granularity={granularity} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Headphones size={28} />} title="No audio exposure data" hint="Headphone and environmental audio levels weren't found in this import." />
+        ))}
 
-        {tab === 'mobility' && hasMobility && (
+        {tab === 'mobility' && (hasMobility ? (
           <Suspense fallback={Loading}>
             <Mobility dailyMobility={data.dailyMobility} cutoffDate={cutoffDate} granularity={granularity} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Footprints size={28} />} title="No mobility data" hint="Walking speed, step length, and other gait metrics weren't found in this import." />
+        ))}
 
-        {tab === 'running' && hasRunning && (
+        {tab === 'running' && (hasRunning ? (
           <Suspense fallback={Loading}>
             <RunningDynamics runningDynamics={data.runningDynamics} cutoffDate={cutoffDate} granularity={granularity} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Zap size={28} />} title="No running dynamics" hint="Running power, stride length, and similar metrics require a compatible Apple Watch. Nothing was found in this import." />
+        ))}
 
-        {tab === 'load' && data.workouts.length >= 7 && (
+        {tab === 'load' && (data.workouts.length >= 7 ? (
           <Suspense fallback={Loading}>
             <TrainingLoad workouts={data.workouts} cutoffDate={cutoffDate} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<TrendingUp size={28} />} title="Not enough workout data" hint="Training load needs at least 7 workouts to compute acute-to-chronic ratios. Log a few more and try again." />
+        ))}
 
         {tab === 'correlations' && (
           <Suspense fallback={Loading}>
@@ -538,29 +581,37 @@ export default function Dashboard({ data, onReset }: { data: HealthData; onReset
           </Suspense>
         )}
 
-        {tab === 'trainings' && hasGpx && (
+        {tab === 'trainings' && (hasGpx ? (
           <Suspense fallback={Loading}>
             <TrainingViewer workouts={data.workouts} gpxFiles={data.gpxFiles} hrTimeline={data.hrTimeline} dob={data.profile.dob} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Dumbbell size={28} />} title="No GPX routes found" hint="Drag the export folder that includes your workout-routes/*.gpx files to see trainings on a map." />
+        ))}
 
-        {tab === 'compare' && hasGpx && (
+        {tab === 'compare' && (hasGpx ? (
           <Suspense fallback={Loading}>
             <RouteComparison gpxFiles={data.gpxFiles} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Route size={28} />} title="No routes to compare" hint="Comparison needs at least two GPX routes from your Apple Health export." />
+        ))}
 
-        {tab === 'heatmap' && hasGpx && (
+        {tab === 'heatmap' && (hasGpx ? (
           <Suspense fallback={Loading}>
             <RouteHeatmap gpxFiles={data.gpxFiles} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Map size={28} />} title="No routes for a heatmap" hint="The heatmap aggregates your GPX routes, none of which were found in this import." />
+        ))}
 
-        {tab === 'garmin-training' && hasGarmin && data.garminMetrics && (
+        {tab === 'garmin-training' && (hasGarmin && data.garminMetrics ? (
           <Suspense fallback={Loading}>
             <GarminTraining garminMetrics={data.garminMetrics} granularity={granularity} dateRange={[cutoffDate || '2000-01-01', '2099-12-31']} />
           </Suspense>
-        )}
+        ) : (
+          <EmptyState icon={<Activity size={28} />} title="No Garmin training data" hint="Switch the source to Garmin on the upload screen and select your Garmin export folder to see training metrics." />
+        ))}
 
         {tab === 'overview' && <>
         {/* Key Metrics */}

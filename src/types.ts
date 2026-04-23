@@ -240,6 +240,8 @@ export interface ParseProgress {
   type: 'progress'
   recordsProcessed: number
   currentDate: string
+  bytesRead?: number
+  totalBytes?: number
 }
 
 export interface ParseComplete {
